@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+numpy
+pandas
+pyarrow
+rasterio
+pyproj
+shapely
+pydantic
+faiss-cpu
+tqdm
