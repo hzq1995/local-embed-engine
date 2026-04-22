@@ -135,6 +135,7 @@ def build_index(
     year: int = 2024,
     block_size: int = 512,
     flush_rows: int = 250_000,
+    skip_faiss: bool = True,
 ) -> BuildResult:
     output_dir.mkdir(parents=True, exist_ok=True)
     boundary_cache_path = output_dir / "ningbo_boundary.geojson"
@@ -215,7 +216,7 @@ def build_index(
         writer.cleanup()
 
     index_type = "numpy_exact"
-    if faiss is not None and total_rows > 0:
+    if not skip_faiss and faiss is not None and total_rows > 0:
         embeddings = np.load(embeddings_path, mmap_mode="r")
         index = faiss.IndexHNSWFlat(embeddings.shape[1], 32, faiss.METRIC_INNER_PRODUCT)
         index.hnsw.efConstruction = 40

@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--year", type=int, default=settings.year)
     parser.add_argument("--block-size", type=int, default=512)
     parser.add_argument("--flush-rows", type=int, default=250000)
+    parser.add_argument("--with-faiss", action="store_true", help="Build FAISS index (disabled by default, only embeddings.npy)")
     args = parser.parse_args()
 
     result = build_index(
@@ -30,6 +31,7 @@ def main() -> None:
         year=args.year,
         block_size=args.block_size,
         flush_rows=args.flush_rows,
+        skip_faiss=not args.with_faiss,
     )
     print(
         f"Built index in {result.output_dir} with {result.vector_count} vectors from "

@@ -385,6 +385,20 @@ button.secondary {
   font-size: 13px;
 }
 
+.readonly-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.readonly-meta-box {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(188, 168, 139, 0.7);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
 /* ── Region cluster legend ───────────────────────────────────────────────── */
 
 .legend-panel {

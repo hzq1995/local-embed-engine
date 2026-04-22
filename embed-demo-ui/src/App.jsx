@@ -56,6 +56,7 @@ export default function App() {
   const mapClickHandlerRef = useRef(null);
 
   const [mapReady, setMapReady] = useState(false);
+  const [viewportState, setViewportState] = useState(null);
   const [activeScene, setActiveScene] = useState("point-query");
   const [apiStatus, setApiStatus] = useState({ kind: "warn", text: "未检查" });
   // targetView drives SceneViewRestorer; each scene switch sets a new object to trigger useEffect
@@ -121,6 +122,7 @@ export default function App() {
           <RegionClusterPanel
             {...sharedPanelProps}
             sceneState={regionClusterState}
+            viewportState={viewportState}
           />
         )}
         {activeScene === "spartina" && (
@@ -153,6 +155,7 @@ export default function App() {
             mapInstanceRef={mapInstanceRef}
             onMapReady={handleMapReady}
             onMapClick={handleMapClick}
+            onViewportChange={setViewportState}
           />
 
           {activeScene === "point-query" && (

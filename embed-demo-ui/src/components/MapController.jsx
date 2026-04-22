@@ -10,22 +10,53 @@ import { useMap, useMapEvents } from "react-leaflet";
  *   mapInstanceRef: React.MutableRefObject
  *   onMapReady: () => void
  *   onMapClick: ({ lat, lng }) => void
+ *   onViewportChange: ({ bbox, center, zoom }) => void
  */
-export function MapController({ mapInstanceRef, onMapReady, onMapClick }) {
+export function MapController({ mapInstanceRef, onMapReady, onMapClick, onViewportChange }) {
   const map = useMap();
 
   useEffect(() => {
     mapInstanceRef.current = map;
     onMapReady();
-  }, [map, mapInstanceRef, onMapReady]);
+    emitViewportState(map, onViewportChange);
+  }, [map, mapInstanceRef, onMapReady, onViewportChange]);
 
   useMapEvents({
     click(e) {
       onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
+    moveend() {
+      emitViewportState(map, onViewportChange);
+    },
+    zoomend() {
+      emitViewportState(map, onViewportChange);
+    },
+    resize() {
+      emitViewportState(map, onViewportChange);
+    },
   });
 
   return null;
+}
+
+function emitViewportState(map, onViewportChange) {
+  if (!onViewportChange) return;
+  const bounds = map.getBounds();
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  onViewportChange({
+    bbox: [
+      Number(sw.lng.toFixed(6)),
+      Number(sw.lat.toFixed(6)),
+      Number(ne.lng.toFixed(6)),
+      Number(ne.lat.toFixed(6)),
+    ],
+    center: {
+      lat: Number(map.getCenter().lat.toFixed(6)),
+      lng: Number(map.getCenter().lng.toFixed(6)),
+    },
+    zoom: map.getZoom(),
+  });
 }
 
 /**

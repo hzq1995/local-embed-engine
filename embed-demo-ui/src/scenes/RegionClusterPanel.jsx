@@ -16,7 +16,13 @@ export const CLUSTER_PALETTE = [
  * Props:
  *   mapInstanceRef, mapReady, apiStatus, onCheckHealth, sceneState
  */
-export default function RegionClusterPanel({ mapReady, apiStatus, onCheckHealth, sceneState }) {
+export default function RegionClusterPanel({
+  mapReady,
+  apiStatus,
+  onCheckHealth,
+  sceneState,
+  viewportState,
+}) {
   const {
     kValue, setKValue,
     totalSamples, setTotalSamples,
@@ -75,6 +81,15 @@ export default function RegionClusterPanel({ mapReady, apiStatus, onCheckHealth,
           <button type="button" className="secondary" onClick={clearResult} disabled={!clusterResult}>
             清空
           </button>
+        </div>
+
+        <div className="readonly-meta">
+          <span className="label">当前视野 bbox</span>
+          <div className="readonly-meta-box mono">
+            {viewportState?.bbox
+              ? `[${viewportState.bbox.map((value) => value.toFixed(6)).join(", ")}]`
+              : "等待地图初始化"}
+          </div>
         </div>
       </section>
 
