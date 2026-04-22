@@ -63,10 +63,13 @@ class IncrementalBuildWriter:
         self.embedding_buffer: list[np.ndarray] = []
         self.total_rows = 0
         self.chunk_index = 0
+        self.dim: int | None = None
 
     def append(self, metadata_rows: list[dict], embeddings: np.ndarray) -> None:
         if len(metadata_rows) == 0:
             return
+        if self.dim is None:
+            self.dim = embeddings.shape[1]
         self.metadata_buffer.extend(metadata_rows)
         self.embedding_buffer.append(embeddings.astype(np.float32, copy=False))
         buffered_rows = sum(chunk.shape[0] for chunk in self.embedding_buffer)
@@ -105,11 +108,12 @@ class IncrementalBuildWriter:
             empty_df = pd.DataFrame(columns=["id", "lon", "lat", "tile_path", "row", "col"])
             empty_df.to_parquet(metadata_path, index=False)
 
+        dim = self.dim if self.dim is not None else 64
         output = np.lib.format.open_memmap(
             embeddings_path,
             mode="w+",
             dtype=np.float32,
-            shape=(self.total_rows, 64),
+            shape=(self.total_rows, dim),
         )
         cursor = 0
         for chunk_path in self.embedding_chunk_paths:

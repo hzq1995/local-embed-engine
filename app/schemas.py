@@ -54,8 +54,8 @@ class EmbeddingSearchRequest(BaseModel):
     @field_validator("embedding")
     @classmethod
     def validate_embedding(cls, value: List[float]) -> List[float]:
-        if len(value) != 64:
-            raise ValueError("embedding must contain exactly 64 values.")
+        if len(value) == 0:
+            raise ValueError("embedding must not be empty.")
         return [float(item) for item in value]
 
     @field_validator("bbox")

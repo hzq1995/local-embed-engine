@@ -10,7 +10,7 @@ MAX_FILE_SIZE_MB="${MAX_FILE_SIZE_MB:-200}"
 OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/release}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 STAGING_DIR="${OUTPUT_DIR}/${PROJECT_NAME}-${TIMESTAMP}"
-ARCHIVE_PATH="${OUTPUT_DIR}/${PROJECT_NAME}-${TIMESTAMP}.tar.gz"
+ARCHIVE_PATH="${OUTPUT_DIR}/${PROJECT_NAME}-${TIMESTAMP}.zip"
 MANIFEST_PATH="${OUTPUT_DIR}/${PROJECT_NAME}-${TIMESTAMP}.manifest.txt"
 
 mkdir -p "${OUTPUT_DIR}"
@@ -110,7 +110,7 @@ with manifest_path.open("w", encoding="utf-8") as fh:
         fh.write(f"{reason:<20}  {rel_path}\n")
 PY
 
-tar -C "${OUTPUT_DIR}" -czf "${ARCHIVE_PATH}" "$(basename "${STAGING_DIR}")"
+(cd "${OUTPUT_DIR}" && zip -r "$(basename "${ARCHIVE_PATH}")" "$(basename "${STAGING_DIR}")")
 rm -rf "${STAGING_DIR}"
 
 INCLUDED_COUNT="$(awk 'BEGIN{c=0;section=0} /^\[included files\]/{section=1;next} /^\[/{section=0} section && NF{c++} END{print c}' "${MANIFEST_PATH}")"
