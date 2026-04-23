@@ -15,9 +15,11 @@ from app.services.build_service import build_index
 def main() -> None:
     settings = get_settings()
     parser = argparse.ArgumentParser(description="Build Ningbo local AEF index.")
-    parser.add_argument("--data-dir", type=Path, default=settings.data_dir)
-    parser.add_argument("--boundary-kml", type=Path, default=settings.boundary_kml_path)
-    parser.add_argument("--output-dir", type=Path, default=settings.derived_dir)
+    # /mnt/task4-data-nas/data/olmoearth/ningbo_beilun_embedding/olmo_earth_one_time_full_tuning/patch_euqal_1
+    # /mnt/task4-data-nas/GEE-download/zwang/output/extract_embeddings_beilun_2m
+    parser.add_argument("--data-dir", type=Path, default='/mnt/task4-data-nas/data/olmoearth/ningbo_beilun_embedding/olmo_earth_one_time_full_tuning/patch_euqal_1')
+    parser.add_argument("--boundary-kml", type=Path, default='/mnt/task4-data-nas/data/beilun.kml')
+    parser.add_argument("--output-dir", type=Path, default='/mnt/task4-data-nas/data/olmoearth/ningbo_beilun_embedding/olmo_earth_one_time_full_tuning/npy_patch_euqal_1')
     parser.add_argument("--year", type=int, default=settings.year)
     parser.add_argument("--block-size", type=int, default=512)
     parser.add_argument("--flush-rows", type=int, default=250000)

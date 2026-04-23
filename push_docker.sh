@@ -11,7 +11,7 @@ REGISTRY="10.200.53.208"  # 实际仓库地址
 DOCKER_USER="zrzyb_003062"
 DOCKER_PASSWORD="Zjlab123"
 IMAGE_NAME="local-embed-engine"
-IMAGE_TAG="v3"
+IMAGE_TAG="v6-olmo"
 FULL_IMAGE_NAME="${REGISTRY}/${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # 获取当前时间作为版本号
@@ -53,17 +53,8 @@ else
     exit 1
 fi
 
-# ========== 步骤4: 登录Docker仓库 ==========
-# echo -e "${YELLOW}[4/5] 登录Docker仓库...${NC}"
-# if echo "${DOCKER_PASSWORD}" | docker login -u ${DOCKER_USER} --password-stdin ${REGISTRY}; then
-#     echo -e "${GREEN}✓ Docker登录成功${NC}"
-# else
-#     echo -e "${RED}✗ Docker登录失败${NC}"
-#     exit 1
-# fi
-
-# ========== 步骤5: 推送镜像 ==========
-echo -e "${YELLOW}[5/5] 推送镜像到仓库...${NC}"
+# ========== 步骤4: 推送镜像 ==========
+echo -e "${YELLOW}[4/5] 推送镜像到仓库...${NC}"
 
 echo -e "${YELLOW}推送 ${FULL_IMAGE_NAME}...${NC}"
 if docker push ${FULL_IMAGE_NAME}; then
@@ -81,8 +72,8 @@ else
     exit 1
 fi
 
-# ========== 清理别名镜像 ==========
-echo -e "${YELLOW}[清理] 删除别名镜像...${NC}"
+# ========== [5/5]清理别名镜像 ==========
+echo -e "${YELLOW}[5/5][清理] 删除别名镜像...${NC}"
 docker rmi ${FULL_IMAGE_NAME}
 docker rmi ${VERSIONED_IMAGE}
 echo -e "${GREEN}✓ 别名镜像已删除${NC}"

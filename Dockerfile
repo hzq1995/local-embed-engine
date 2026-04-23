@@ -1,5 +1,5 @@
 # 使用现有的synrs3d_env镜像作为基础
-FROM local-embed-engine:v2
+FROM local-embed-engine:v4
 
 # 设置工作目录
 WORKDIR /app
@@ -9,6 +9,7 @@ COPY app/ ./app/
 COPY scripts/ ./scripts/
 COPY requirements.txt ./
 COPY start_backend.sh ./
+COPY start_build_index.sh ./
 
 # 安装Python依赖（使用阿里云镜像加速）
 RUN pip install -i  https://mirrors.aliyun.com/pypi/simple/ --no-cache-dir -r requirements.txt

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import numpy as np
@@ -82,6 +84,36 @@ def create_test_geotiff(path: Path) -> None:
         crs="EPSG:32651",
         transform=transform,
         nodata=-128,
+    ) as ds:
+        ds.write(data)
+
+
+def create_zero_vector_geotiff(path: Path) -> None:
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:32651", always_xy=True)
+    x0, y0 = transformer.transform(121.5400, 29.8720)
+    x1, y1 = transformer.transform(121.5480, 29.8640)
+    width = 4
+    height = 4
+    pixel_size_x = (x1 - x0) / width
+    pixel_size_y = (y0 - y1) / height
+    transform = from_origin(x0, y0, pixel_size_x, pixel_size_y)
+
+    data = np.zeros((64, height, width), dtype=np.int16)
+    for band in range(64):
+        data[band, :, :] = band + 1
+    data[:, 1, 2] = 0
+
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=64,
+        dtype="int16",
+        crs="EPSG:32651",
+        transform=transform,
+        nodata=-9999,
     ) as ds:
         ds.write(data)
 
@@ -182,6 +214,32 @@ class BuildAndApiTests(unittest.TestCase):
                 json={"embedding": point_payload["embedding"], "top_k": 1001},
             )
             self.assertEqual(invalid_top_k.status_code, 422)
+
+    def test_build_fails_fast_on_zero_vector_and_reports_location(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            data_dir = root / "tiles"
+            data_dir.mkdir()
+            boundary_kml = root / "宁波市.kml"
+            derived_dir = root / "derived"
+            create_test_kml(boundary_kml)
+            tif_path = data_dir / "zero_vector.tiff"
+            create_zero_vector_geotiff(tif_path)
+
+            stdout = io.StringIO()
+            with self.assertRaisesRegex(ValueError, r"all-zero vector") as exc_info:
+                with redirect_stdout(stdout):
+                    build_index(data_dir, boundary_kml, derived_dir, block_size=2)
+
+            message = str(exc_info.exception)
+            logs = stdout.getvalue()
+            self.assertIn(str(tif_path), message)
+            self.assertIn("row=", message)
+            self.assertIn("col=", message)
+            self.assertIn("tile_start", logs)
+            self.assertIn("block_scan", logs)
+            self.assertIn("zero_vector_error", logs)
+            self.assertFalse((derived_dir / "build_info.json").exists())
 
 
 if __name__ == "__main__":

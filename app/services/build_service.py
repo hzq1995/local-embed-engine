@@ -51,6 +51,17 @@ def _progress(iterable, **kwargs):
     return tqdm(iterable, **kwargs)
 
 
+def _format_window(window: Window) -> str:
+    return (
+        f"row_off={int(window.row_off)} col_off={int(window.col_off)} "
+        f"width={int(window.width)} height={int(window.height)}"
+    )
+
+
+def _log_build(message: str) -> None:
+    print(f"[build_index] {message}", flush=True)
+
+
 class IncrementalBuildWriter:
     def __init__(self, output_dir: Path, flush_rows: int = 250_000):
         self.output_dir = output_dir
@@ -157,7 +168,8 @@ def build_index(
 
     try:
         tile_iterator = _progress(candidate_tiles, desc="Tiles", unit="tile")
-        for tile in tile_iterator:
+        total_candidate_tiles = len(candidate_tiles)
+        for tile_number, tile in enumerate(tile_iterator, start=1):
             with rasterio.open(tile.path) as ds:
                 tile_bounds = rasterio.warp.transform_bounds(ds.crs, "EPSG:4326", *ds.bounds, densify_pts=21)
                 if not boundary.geometry.intersects(box(*tile_bounds)):
@@ -165,18 +177,32 @@ def build_index(
                 selected_tiles.append(str(tile.path))
 
                 windows = list(_iter_windows(ds.width, ds.height, block_size))
+                tile_start_rows = writer.total_rows + len(writer.metadata_buffer)
+                _log_build(
+                    "tile_start "
+                    f"tile_index={tile_number}/{total_candidate_tiles} "
+                    f"path={tile.path} width={ds.width} height={ds.height} "
+                    f"bands={ds.count} nodata={ds.nodata} blocks={len(windows)}"
+                )
                 window_iterator = _progress(
                     windows,
                     desc=f"Blocks {tile.path.name}",
                     unit="block",
                     leave=False,
                 )
-                for window in window_iterator:
+                for block_number, window in enumerate(window_iterator, start=1):
                     block = ds.read(window=window)
                     nodata = ds.nodata
                     valid_mask = np.ones((int(window.height), int(window.width)), dtype=bool)
                     if nodata is not None:
                         valid_mask &= np.all(block != nodata, axis=0)
+                    valid_pixel_count = int(valid_mask.sum())
+                    _log_build(
+                        "block_scan "
+                        f"tile={tile.path.name} block={block_number}/{len(windows)} "
+                        f"{_format_window(window)} valid_pixels={valid_pixel_count} "
+                        f"buffered_vectors={writer.total_rows + len(writer.metadata_buffer)}"
+                    )
                     if not np.any(valid_mask):
                         continue
 
@@ -185,6 +211,13 @@ def build_index(
                     cols = cols + int(window.col_off)
                     lons, lats = catalog.transform_pixel_centers_to_wgs84(ds, rows, cols)
                     inside_mask = np.asarray(boundary.contains_xy(lons, lats), dtype=bool)
+                    inside_pixel_count = int(inside_mask.sum())
+                    _log_build(
+                        "block_filter "
+                        f"tile={tile.path.name} block={block_number}/{len(windows)} "
+                        f"{_format_window(window)} inside_pixels={inside_pixel_count} "
+                        f"valid_pixels={valid_pixel_count}"
+                    )
                     if not np.any(inside_mask):
                         continue
 
@@ -194,7 +227,29 @@ def build_index(
                     lats = lats[inside_mask]
                     local_rows = rows - int(window.row_off)
                     local_cols = cols - int(window.col_off)
-                    vectors = normalize_embeddings(block[:, local_rows, local_cols].T.astype(np.float32))
+                    raw_vectors = block[:, local_rows, local_cols].T.astype(np.float32)
+                    zero_mask = np.all(raw_vectors == 0, axis=1)
+                    zero_count = int(zero_mask.sum())
+                    if zero_count > 0:
+                        first_zero_index = int(np.flatnonzero(zero_mask)[0])
+                        error_message = (
+                            "Encountered all-zero vector while building index: "
+                            f"tile_path={tile.path}, {_format_window(window)}, "
+                            f"valid_pixels={valid_pixel_count}, inside_pixels={inside_pixel_count}, "
+                            f"zero_vector_count={zero_count}, "
+                            f"row={int(rows[first_zero_index])}, col={int(cols[first_zero_index])}, "
+                            f"lon={float(lons[first_zero_index])}, lat={float(lats[first_zero_index])}"
+                        )
+                        _log_build(f"zero_vector_error {error_message}")
+                        raise ValueError(error_message)
+
+                    vectors = normalize_embeddings(raw_vectors)
+                    _log_build(
+                        "block_ready "
+                        f"tile={tile.path.name} block={block_number}/{len(windows)} "
+                        f"{_format_window(window)} vectors={len(rows)} "
+                        f"total_after_append={writer.total_rows + len(writer.metadata_buffer) + len(rows)}"
+                    )
 
                     metadata_rows = []
                     for row, col, lon, lat in zip(rows, cols, lons, lats):
@@ -214,6 +269,12 @@ def build_index(
 
                 if tqdm is not None:
                     tile_iterator.set_postfix(vectors=writer.total_rows + len(writer.metadata_buffer))
+                tile_written_rows = writer.total_rows + len(writer.metadata_buffer) - tile_start_rows
+                _log_build(
+                    f"tile_done tile_index={tile_number}/{total_candidate_tiles} "
+                    f"path={tile.path} blocks={len(windows)} "
+                    f"tile_vectors={tile_written_rows} total_vectors={writer.total_rows + len(writer.metadata_buffer)}"
+                )
 
         total_rows = writer.finalize(metadata_path, embeddings_path)
     finally:
