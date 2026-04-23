@@ -20,11 +20,44 @@ class QueryService:
     def get_embedding_by_point(self, lon: float, lat: float) -> dict:
         if not self.boundary.contains_point(lon, lat):
             raise ValueError("Point is outside Ningbo boundary.")
-        tile = self.catalog.locate_tile(lon, lat)
-        if tile is None:
-            raise ValueError("No source tile found for the given point.")
-        result = self.catalog.fetch_embedding_for_point(tile, lon, lat)
+        result = self._fetch_embedding_from_index(lon, lat)
         return {"year": self.year, "lon": lon, "lat": lat, **result}
+
+    def _fetch_embedding_from_index(self, lon: float, lat: float) -> dict:
+        """Fetch the nearest embedding from the pre-built index (embeddings.npy + metadata).
+
+        Uses a small bbox window, falling back to a full scan if nothing is found nearby.
+        """
+        md = self.index_bundle.metadata
+        if len(md) == 0:
+            raise ValueError("Index is empty; run build first.")
+
+        # Search within a ~1 km window (~0.01 deg) first for speed
+        window = 0.01
+        mask = (
+            (md["lon"] >= lon - window)
+            & (md["lon"] <= lon + window)
+            & (md["lat"] >= lat - window)
+            & (md["lat"] <= lat + window)
+        )
+        subset = md[mask]
+        if len(subset) == 0:
+            subset = md  # fall back to full scan
+
+        lons = subset["lon"].to_numpy()
+        lats = subset["lat"].to_numpy()
+        # Approximate squared distance in degrees (sufficient for nearest-pixel selection)
+        dist2 = (lons - lon) ** 2 + (lats - lat) ** 2
+        local_idx = int(np.argmin(dist2))
+        row = subset.iloc[local_idx]
+        pixel_id = int(row["id"])
+        embedding = self.index_bundle.embeddings[pixel_id].astype(np.float32).tolist()
+        return {
+            "tile_path": str(row.get("tile_path", "")),
+            "row": int(row.get("row", -1)),
+            "col": int(row.get("col", -1)),
+            "embedding": embedding,
+        }
 
     def search_by_embedding(
         self,
