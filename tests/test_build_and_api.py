@@ -166,6 +166,12 @@ class BuildAndApiTests(unittest.TestCase):
             self.assertEqual(health.status_code, 200)
             self.assertTrue(health.json()["index_loaded"])
 
+            offline_page = client.get("/offline/point-query")
+            self.assertEqual(offline_page.status_code, 200)
+            self.assertIn("离线选点查询测试", offline_page.text)
+            self.assertIn("/embedding/by-point", offline_page.text)
+            self.assertIn("/search/by-embedding", offline_page.text)
+
             point_response = client.post("/embedding/by-point", json={"lon": 121.546, "lat": 29.868})
             self.assertEqual(point_response.status_code, 200)
             point_payload = point_response.json()

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
 
 from app.config import Settings, get_settings
 from app.schemas import (
@@ -18,11 +20,13 @@ from app.schemas import (
 from app.services.boundary_service import BoundaryService
 from app.services.catalog_service import TileCatalog
 from app.services.index_service import IndexBundle
+from app.services.offline_basemap_service import get_basemap_tile_path, list_basemaps
 from app.services.query_service import QueryService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    offline_point_query_path = Path(__file__).resolve().parent / "static" / "offline-point-query.html"
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -90,6 +94,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             coarse_embedding_dim=service.index_bundle.coarse_index.embedding_dim if service.index_bundle.coarse_index else None,
             coarse_stride=service.index_bundle.coarse_index.stride if service.index_bundle.coarse_index else None,
         )
+
+    @app.get("/offline/point-query", response_class=HTMLResponse)
+    def offline_point_query() -> HTMLResponse:
+        if not offline_point_query_path.exists():
+            raise HTTPException(status_code=404, detail="offline point query page is missing")
+        return HTMLResponse(offline_point_query_path.read_text(encoding="utf-8"))
+
+    @app.get("/offline/basemaps")
+    def offline_basemaps() -> list[dict]:
+        return list_basemaps(settings.basemap_dir, settings.basemap_cache_dir)
+
+    @app.get("/offline/basemaps/{basemap_id}/tiles/{z}/{x}/{y}.png")
+    def offline_basemap_tile(basemap_id: str, z: int, x: int, y: int) -> FileResponse:
+        path = get_basemap_tile_path(settings.basemap_dir, settings.basemap_cache_dir, basemap_id, z, x, y)
+        if path is None or not path.exists():
+            raise HTTPException(status_code=404, detail="offline basemap tile not found")
+        return FileResponse(path, media_type="image/png")
 
     @app.post("/embedding/by-point", response_model=PointEmbeddingResponse)
     def embedding_by_point(request: PointRequest) -> PointEmbeddingResponse:

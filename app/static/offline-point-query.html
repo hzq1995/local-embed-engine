@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>离线选点查询测试</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --text: #1f2933;
+        --muted: #667085;
+        --line: #d9dee7;
+        --accent: #1f7a8c;
+        --accent-strong: #155f6e;
+        --query: #d96c2c;
+        --result: #2563eb;
+        --danger: #b42318;
+        --ok: #067647;
+        --warn: #b54708;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      aside {
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        padding: 16px;
+        overflow: auto;
+      }
+
+      main {
+        padding: 16px;
+        min-width: 0;
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+        line-height: 1.25;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+
+      .subtle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 12px;
+        margin-top: 12px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      input,
+      select,
+      button {
+        font: inherit;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 9px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .check-row input {
+        width: auto;
+        min-height: auto;
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      button {
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 10px;
+        background: #fff;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+
+      button.primary:hover {
+        background: var(--accent-strong);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .status {
+        border-left: 4px solid var(--warn);
+      }
+
+      .status.ok {
+        border-left-color: var(--ok);
+      }
+
+      .status.error {
+        border-left-color: var(--danger);
+      }
+
+      .status strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .mono,
+      pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      pre {
+        max-height: 150px;
+        overflow: auto;
+        margin: 8px 0 0;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #f8fafc;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+
+      .canvas-card {
+        height: calc(100vh - 32px);
+        min-height: 520px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 10px;
+      }
+
+      .canvas-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .legend {
+        display: flex;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .map-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .map-toolbar button {
+        min-width: 38px;
+        padding-left: 9px;
+        padding-right: 9px;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 5px;
+        border-radius: 50%;
+        vertical-align: -1px;
+      }
+
+      .dot.query {
+        background: var(--query);
+      }
+
+      .dot.result {
+        background: var(--result);
+      }
+
+      canvas {
+        width: 100%;
+        height: 100%;
+        min-height: 390px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #eef3f7;
+        cursor: grab;
+      }
+
+      canvas.dragging {
+        cursor: grabbing;
+      }
+
+      .coord-readout {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .basemap-line {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      .point-list,
+      .result-list {
+        display: grid;
+        gap: 8px;
+        max-height: 260px;
+        overflow: auto;
+      }
+
+      .item {
+        width: 100%;
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px;
+        background: #fff;
+      }
+
+      .item.active {
+        border-color: var(--result);
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+      }
+
+      .item-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 5px;
+        font-weight: 700;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      @media (max-width: 920px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        aside {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .canvas-card {
+          height: 70vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <header>
+          <h1>离线选点查询测试</h1>
+          <p class="subtle">无 npm、无在线地图、无外部资源。点击右侧坐标画布或手动输入经纬度进行测试，可滚轮缩放、拖拽平移。</p>
+        </header>
+
+        <section class="panel status" id="statusBox">
+          <strong id="statusTitle">等待操作</strong>
+          <div id="statusText" class="small">建议先做健康检查。</div>
+        </section>
+
+        <section class="panel">
+          <h2>连接</h2>
+          <div class="button-row">
+            <button type="button" id="healthBtn">健康检查</button>
+          </div>
+          <pre id="healthOutput">未检查</pre>
+        </section>
+
+        <section class="panel">
+          <h2>离线底图</h2>
+          <div id="basemapStatus" class="basemap-line">正在读取 /offline/basemaps ...</div>
+          <div class="button-row">
+            <button type="button" id="reloadBasemapBtn">重新加载底图</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>手动选点</h2>
+          <div class="grid-2">
+            <div>
+              <label for="lonInput">经度 lon</label>
+              <input id="lonInput" type="number" step="0.000001" value="121.544000" />
+            </div>
+            <div>
+              <label for="latInput">纬度 lat</label>
+              <input id="latInput" type="number" step="0.000001" value="29.868300" />
+            </div>
+          </div>
+          <div class="button-row">
+            <button type="button" class="primary" id="addPointBtn">添加查询点</button>
+            <button type="button" id="removeLastBtn">移除末点</button>
+            <button type="button" id="clearBtn">清空</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>搜索参数</h2>
+          <div class="grid-2">
+            <div>
+              <label for="topKInput">Top K</label>
+              <input id="topKInput" type="number" min="1" max="1000" step="1" value="20" />
+            </div>
+            <div>
+              <label for="radiusInput">搜索半径 km</label>
+              <input id="radiusInput" type="number" min="0.1" step="0.5" value="5" />
+            </div>
+            <div>
+              <label for="minDistanceInput">最小结果间距 m</label>
+              <input id="minDistanceInput" type="number" min="0" step="10" value="50" />
+            </div>
+            <div>
+              <label for="minScoreInput">相似度阈值</label>
+              <input id="minScoreInput" type="number" min="0" max="1" step="0.01" value="0.9" />
+            </div>
+          </div>
+          <div style="margin-top: 10px">
+            <label for="searchModeInput">搜索模式</label>
+            <select id="searchModeInput">
+              <option value="fine">fine 精细索引</option>
+              <option value="coarse">coarse 粗糙索引</option>
+            </select>
+          </div>
+          <div class="button-row">
+            <button type="button" class="primary" id="searchBtn" disabled>搜索相似位置</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>查询点 <span id="pointCount" class="small">0 个</span></h2>
+          <div id="pointList" class="point-list">
+            <div class="small">暂无查询点。</div>
+          </div>
+          <pre id="embeddingPreview">平均 embedding：无</pre>
+        </section>
+
+        <section class="panel">
+          <h2>搜索结果 <span id="resultCount" class="small">0 个</span></h2>
+          <div id="resultList" class="result-list">
+            <div class="small">暂无结果。</div>
+          </div>
+        </section>
+      </aside>
+
+      <main>
+        <section class="panel canvas-card">
+          <div class="canvas-head">
+            <div>
+              <h2>宁波经纬度画布</h2>
+              <p class="subtle">范围：lon 120.8629399 到 122.27497621，lat 28.85623726 到 30.49199632。滚轮缩放，拖拽平移，单击选点。</p>
+              <div class="map-toolbar">
+                <button type="button" id="zoomInBtn">+</button>
+                <button type="button" id="zoomOutBtn">-</button>
+                <button type="button" id="resetViewBtn">全图</button>
+              </div>
+            </div>
+            <div class="legend">
+              <span><span class="dot query"></span>查询点</span>
+              <span><span class="dot result"></span>结果</span>
+            </div>
+          </div>
+          <canvas id="mapCanvas" width="1100" height="720"></canvas>
+          <div class="coord-readout mono" id="coordReadout">移动鼠标查看坐标。</div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const BOUNDS = {
+        minLon: 120.8629399,
+        minLat: 28.85623726,
+        maxLon: 122.27497621,
+        maxLat: 30.49199632,
+      };
+      const MIN_TILE_Z = 3;
+      const MAX_TILE_Z = 7;
+
+      const state = {
+        points: [],
+        results: [],
+        activeRank: null,
+        busy: false,
+        basemaps: [],
+        basemapSources: [],
+        tileCache: new Map(),
+        tileZoom: MIN_TILE_Z,
+        view: { ...BOUNDS },
+        drag: null,
+        suppressNextClick: false,
+      };
+
+      const els = {
+        statusBox: document.getElementById("statusBox"),
+        statusTitle: document.getElementById("statusTitle"),
+        statusText: document.getElementById("statusText"),
+        healthBtn: document.getElementById("healthBtn"),
+        healthOutput: document.getElementById("healthOutput"),
+        basemapStatus: document.getElementById("basemapStatus"),
+        reloadBasemapBtn: document.getElementById("reloadBasemapBtn"),
+        lonInput: document.getElementById("lonInput"),
+        latInput: document.getElementById("latInput"),
+        addPointBtn: document.getElementById("addPointBtn"),
+        removeLastBtn: document.getElementById("removeLastBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        topKInput: document.getElementById("topKInput"),
+        radiusInput: document.getElementById("radiusInput"),
+        minDistanceInput: document.getElementById("minDistanceInput"),
+        minScoreInput: document.getElementById("minScoreInput"),
+        searchModeInput: document.getElementById("searchModeInput"),
+        searchBtn: document.getElementById("searchBtn"),
+        pointCount: document.getElementById("pointCount"),
+        pointList: document.getElementById("pointList"),
+        embeddingPreview: document.getElementById("embeddingPreview"),
+        resultCount: document.getElementById("resultCount"),
+        resultList: document.getElementById("resultList"),
+        canvas: document.getElementById("mapCanvas"),
+        coordReadout: document.getElementById("coordReadout"),
+        zoomInBtn: document.getElementById("zoomInBtn"),
+        zoomOutBtn: document.getElementById("zoomOutBtn"),
+        resetViewBtn: document.getElementById("resetViewBtn"),
+      };
+
+      const ctx = els.canvas.getContext("2d");
+
+      function setStatus(kind, title, text) {
+        els.statusBox.className = "panel status " + (kind || "");
+        els.statusTitle.textContent = title;
+        els.statusText.textContent = text;
+      }
+
+      function apiErrorMessage(error) {
+        if (error && error.message) return error.message;
+        return String(error);
+      }
+
+      async function requestJson(path, options) {
+        const response = await fetch(path, options);
+        let data = null;
+        try {
+          data = await response.json();
+        } catch (_error) {
+          data = null;
+        }
+        if (!response.ok) {
+          if (data && typeof data.detail === "string") throw new Error(data.detail);
+          if (data && data.detail) throw new Error(JSON.stringify(data.detail));
+          throw new Error(response.status + " " + response.statusText);
+        }
+        return data;
+      }
+
+      function lonLatToCanvas(lon, lat) {
+        const pad = 42;
+        const w = els.canvas.width - pad * 2;
+        const h = els.canvas.height - pad * 2;
+        const view = state.view;
+        const x = pad + ((lon - view.minLon) / (view.maxLon - view.minLon)) * w;
+        const y = pad + ((view.maxLat - lat) / (view.maxLat - view.minLat)) * h;
+        return { x, y };
+      }
+
+      function canvasToLonLat(offsetX, offsetY) {
+        const rect = els.canvas.getBoundingClientRect();
+        const scaleX = els.canvas.width / rect.width;
+        const scaleY = els.canvas.height / rect.height;
+        const x = offsetX * scaleX;
+        const y = offsetY * scaleY;
+        const pad = 42;
+        const w = els.canvas.width - pad * 2;
+        const h = els.canvas.height - pad * 2;
+        const view = state.view;
+        const lon = view.minLon + ((x - pad) / w) * (view.maxLon - view.minLon);
+        const lat = view.maxLat - ((y - pad) / h) * (view.maxLat - view.minLat);
+        return { lon, lat };
+      }
+
+      function inBounds(lon, lat) {
+        return lon >= BOUNDS.minLon && lon <= BOUNDS.maxLon && lat >= BOUNDS.minLat && lat <= BOUNDS.maxLat;
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function normalizeView(view) {
+        const fullLonSpan = BOUNDS.maxLon - BOUNDS.minLon;
+        const fullLatSpan = BOUNDS.maxLat - BOUNDS.minLat;
+        const lonSpan = Math.min(view.maxLon - view.minLon, fullLonSpan);
+        const latSpan = Math.min(view.maxLat - view.minLat, fullLatSpan);
+        let centerLon = (view.minLon + view.maxLon) / 2;
+        let centerLat = (view.minLat + view.maxLat) / 2;
+        centerLon = clamp(centerLon, BOUNDS.minLon + lonSpan / 2, BOUNDS.maxLon - lonSpan / 2);
+        centerLat = clamp(centerLat, BOUNDS.minLat + latSpan / 2, BOUNDS.maxLat - latSpan / 2);
+        return {
+          minLon: centerLon - lonSpan / 2,
+          minLat: centerLat - latSpan / 2,
+          maxLon: centerLon + lonSpan / 2,
+          maxLat: centerLat + latSpan / 2,
+        };
+      }
+
+      function setView(view, tileZoom) {
+        state.view = normalizeView(view);
+        if (Number.isInteger(tileZoom)) state.tileZoom = clamp(tileZoom, MIN_TILE_Z, MAX_TILE_Z);
+        refreshVisibleBasemapTiles();
+        draw();
+      }
+
+      function zoomAt(lon, lat, delta) {
+        const nextZoom = clamp(state.tileZoom + delta, MIN_TILE_Z, MAX_TILE_Z);
+        const scale = Math.pow(2, nextZoom - state.tileZoom);
+        const view = state.view;
+        const leftRatio = (lon - view.minLon) / (view.maxLon - view.minLon);
+        const topRatio = (view.maxLat - lat) / (view.maxLat - view.minLat);
+        const nextLonSpan = (view.maxLon - view.minLon) / scale;
+        const nextLatSpan = (view.maxLat - view.minLat) / scale;
+        setView(
+          {
+            minLon: lon - nextLonSpan * leftRatio,
+            maxLon: lon + nextLonSpan * (1 - leftRatio),
+            maxLat: lat + nextLatSpan * topRatio,
+            minLat: lat - nextLatSpan * (1 - topRatio),
+          },
+          nextZoom,
+        );
+      }
+
+      function resetView() {
+        setView({ ...BOUNDS }, MIN_TILE_Z);
+      }
+
+      function panByCanvasDelta(deltaX, deltaY) {
+        const pad = 42;
+        const w = els.canvas.width - pad * 2;
+        const h = els.canvas.height - pad * 2;
+        const view = state.view;
+        const lonShift = -(deltaX / w) * (view.maxLon - view.minLon);
+        const latShift = (deltaY / h) * (view.maxLat - view.minLat);
+        setView({
+          minLon: view.minLon + lonShift,
+          maxLon: view.maxLon + lonShift,
+          minLat: view.minLat + latShift,
+          maxLat: view.maxLat + latShift,
+        });
+      }
+
+      function draw() {
+        const width = els.canvas.width;
+        const height = els.canvas.height;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#eef3f7";
+        ctx.fillRect(0, 0, width, height);
+
+        const pad = 42;
+        const plotW = width - pad * 2;
+        const plotH = height - pad * 2;
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(pad, pad, plotW, plotH);
+        ctx.strokeStyle = "#b8c2cc";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pad, pad, plotW, plotH);
+
+        drawBasemaps();
+
+        ctx.strokeStyle = "#e1e7ef";
+        ctx.fillStyle = "#667085";
+        ctx.font = "12px ui-monospace, monospace";
+        for (let i = 0; i <= 6; i++) {
+          const x = pad + (plotW * i) / 6;
+          const lon = state.view.minLon + ((state.view.maxLon - state.view.minLon) * i) / 6;
+          ctx.beginPath();
+          ctx.moveTo(x, pad);
+          ctx.lineTo(x, pad + plotH);
+          ctx.stroke();
+          ctx.fillText(lon.toFixed(5), x - 34, height - 14);
+        }
+        for (let i = 0; i <= 6; i++) {
+          const y = pad + (plotH * i) / 6;
+          const lat = state.view.maxLat - ((state.view.maxLat - state.view.minLat) * i) / 6;
+          ctx.beginPath();
+          ctx.moveTo(pad, y);
+          ctx.lineTo(pad + plotW, y);
+          ctx.stroke();
+          ctx.fillText(lat.toFixed(5), 6, y + 4);
+        }
+
+        for (const item of state.results) {
+          const point = lonLatToCanvas(item.lon, item.lat);
+          ctx.beginPath();
+          ctx.fillStyle = item.rank === state.activeRank ? "#1d4ed8" : "#2563eb";
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          ctx.arc(point.x, point.y, item.rank === state.activeRank ? 9 : 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = "#111827";
+          ctx.font = "bold 12px ui-monospace, monospace";
+          ctx.fillText(String(item.rank), point.x + 10, point.y - 8);
+        }
+
+        state.points.forEach((item, index) => {
+          const point = lonLatToCanvas(item.lon, item.lat);
+          ctx.beginPath();
+          ctx.fillStyle = item.pending ? "#9ca3af" : "#d96c2c";
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = "#111827";
+          ctx.font = "bold 12px ui-monospace, monospace";
+          ctx.fillText("Q" + (index + 1), point.x + 10, point.y - 8);
+        });
+      }
+
+      function drawBasemaps() {
+        for (const item of state.basemaps) {
+          if (!item.image || !item.image.complete || !item.bounds) continue;
+          const leftTop = lonLatToCanvas(item.bounds[0], item.bounds[3]);
+          const rightBottom = lonLatToCanvas(item.bounds[2], item.bounds[1]);
+          const x = Math.min(leftTop.x, rightBottom.x);
+          const y = Math.min(leftTop.y, rightBottom.y);
+          const width = Math.abs(rightBottom.x - leftTop.x);
+          const height = Math.abs(rightBottom.y - leftTop.y);
+          if (width <= 0 || height <= 0) continue;
+          ctx.drawImage(item.image, x, y, width, height);
+        }
+      }
+
+      function averageEmbedding() {
+        const ready = state.points.filter((item) => !item.pending && Array.isArray(item.embedding));
+        if (!ready.length) return null;
+        const dim = ready[0].embedding.length;
+        const sum = new Array(dim).fill(0);
+        for (const item of ready) {
+          for (let i = 0; i < dim; i += 1) sum[i] += Number(item.embedding[i]);
+        }
+        return sum.map((value) => value / ready.length);
+      }
+
+      function renderPoints() {
+        els.pointCount.textContent = state.points.length + " 个";
+        if (!state.points.length) {
+          els.pointList.innerHTML = '<div class="small">暂无查询点。</div>';
+        } else {
+          els.pointList.innerHTML = "";
+          state.points.forEach((item, index) => {
+            const div = document.createElement("div");
+            div.className = "item";
+            div.innerHTML =
+              '<div class="item-head"><span>Q' + (index + 1) + '</span><span>' +
+              (item.pending ? "获取中" : item.embedding.length + " dims") +
+              '</span></div><div class="small mono">lon=' + item.lon.toFixed(6) +
+              ", lat=" + item.lat.toFixed(6) + "</div>";
+            els.pointList.appendChild(div);
+          });
+        }
+
+        const avg = averageEmbedding();
+        els.searchBtn.disabled = !avg || state.busy;
+        if (!avg) {
+          els.embeddingPreview.textContent = "平均 embedding：无";
+        } else {
+          const lines = avg.slice(0, 12).map((value, index) => String(index).padStart(2, "0") + ": " + value.toFixed(6));
+          els.embeddingPreview.textContent = "平均 embedding：" + avg.length + " dims\n" + lines.join("\n");
+        }
+      }
+
+      function renderResults() {
+        els.resultCount.textContent = state.results.length + " 个";
+        if (!state.results.length) {
+          els.resultList.innerHTML = '<div class="small">暂无结果。</div>';
+          return;
+        }
+        els.resultList.innerHTML = "";
+        state.results.forEach((item) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "item" + (item.rank === state.activeRank ? " active" : "");
+          button.innerHTML =
+            '<div class="item-head"><span>#' + item.rank + '</span><span>' + Number(item.score).toFixed(6) +
+            '</span></div><div class="small mono">lon=' + Number(item.lon).toFixed(6) +
+            ", lat=" + Number(item.lat).toFixed(6) +
+            '</div><div class="small mono">tile=' + String(item.tile_path || "") +
+            '</div><div class="small mono">row=' + item.row + ", col=" + item.col + "</div>";
+          button.addEventListener("click", () => {
+            state.activeRank = item.rank;
+            renderResults();
+            draw();
+          });
+          els.resultList.appendChild(button);
+        });
+      }
+
+      function render() {
+        renderPoints();
+        renderResults();
+        draw();
+      }
+
+      function validateSearchParams() {
+        const topK = Number(els.topKInput.value);
+        const radiusKm = Number(els.radiusInput.value);
+        const minDistanceM = Number(els.minDistanceInput.value);
+        const minScore = Number(els.minScoreInput.value);
+
+        if (!Number.isInteger(topK) || topK < 1 || topK > 1000) throw new Error("Top K 必须是 1 到 1000 的整数。");
+        if (!Number.isFinite(radiusKm) || radiusKm <= 0) throw new Error("搜索半径必须大于 0。");
+        if (!Number.isFinite(minDistanceM) || minDistanceM < 0) throw new Error("最小结果间距必须大于等于 0。");
+        if (!Number.isFinite(minScore) || minScore < 0 || minScore > 1) throw new Error("相似度阈值必须在 0 到 1 之间。");
+
+        localStorage.setItem("offlinePointQuery.params", JSON.stringify({
+          topK,
+          radiusKm,
+          minDistanceM,
+          minScore,
+          searchMode: els.searchModeInput.value,
+        }));
+        return { topK, radiusKm, minDistanceM, minScore };
+      }
+
+      function loadStoredParams() {
+        try {
+          const raw = localStorage.getItem("offlinePointQuery.params");
+          if (!raw) return;
+          const data = JSON.parse(raw);
+          if (data.topK) els.topKInput.value = data.topK;
+          if (data.radiusKm) els.radiusInput.value = data.radiusKm;
+          if (data.minDistanceM !== undefined) els.minDistanceInput.value = data.minDistanceM;
+          if (data.minScore !== undefined) els.minScoreInput.value = data.minScore;
+          if (data.searchMode) els.searchModeInput.value = data.searchMode;
+        } catch (_error) {
+          return;
+        }
+      }
+
+      async function addPoint(lon, lat) {
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+          setStatus("error", "坐标无效", "请输入合法经纬度。");
+          return;
+        }
+        if (!inBounds(lon, lat)) {
+          setStatus("error", "坐标超出画布", "经纬度不在宁波测试画布范围内。");
+          return;
+        }
+
+        const point = { lon, lat, embedding: null, pending: true };
+        state.points.push(point);
+        state.results = [];
+        state.activeRank = null;
+        setStatus("", "查询点位 embedding", "正在调用 /embedding/by-point ...");
+        render();
+
+        try {
+          const payload = await requestJson("/embedding/by-point", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lon, lat }),
+          });
+          point.pending = false;
+          point.embedding = payload.embedding || [];
+          setStatus("ok", "已添加查询点", "返回 " + point.embedding.length + " 维 embedding。");
+        } catch (error) {
+          const index = state.points.indexOf(point);
+          if (index >= 0) state.points.splice(index, 1);
+          setStatus("error", "embedding 查询失败", apiErrorMessage(error));
+        } finally {
+          render();
+        }
+      }
+
+      async function runSearch() {
+        const avg = averageEmbedding();
+        if (!avg) return;
+
+        let params;
+        try {
+          params = validateSearchParams();
+        } catch (error) {
+          setStatus("error", "搜索参数无效", apiErrorMessage(error));
+          return;
+        }
+
+        const readyPoints = state.points.filter((item) => !item.pending);
+        const centerLat = readyPoints.reduce((sum, item) => sum + item.lat, 0) / readyPoints.length;
+        const centerLon = readyPoints.reduce((sum, item) => sum + item.lon, 0) / readyPoints.length;
+        const halfM = params.radiusKm * 1000;
+        const dLat = halfM / 111320;
+        const dLon = halfM / (111320 * Math.cos((centerLat * Math.PI) / 180));
+        const bbox = [
+          Number((centerLon - dLon).toFixed(6)),
+          Number((centerLat - dLat).toFixed(6)),
+          Number((centerLon + dLon).toFixed(6)),
+          Number((centerLat + dLat).toFixed(6)),
+        ];
+
+        const payload = {
+          embedding: avg,
+          search_mode: els.searchModeInput.value,
+          top_k: params.topK,
+          min_distance_m: params.minDistanceM,
+          min_score: params.minScore,
+          bbox,
+        };
+
+        state.busy = true;
+        els.searchBtn.disabled = true;
+        setStatus("", "检索相似位置", "正在调用 /search/by-embedding ...");
+        render();
+
+        try {
+          const data = await requestJson("/search/by-embedding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          state.results = data.results || [];
+          state.activeRank = state.results.length ? state.results[0].rank : null;
+          setStatus("ok", "检索完成", "返回 " + (data.result_count || 0) + " 个结果，bbox=[" + bbox.join(", ") + "]。");
+        } catch (error) {
+          state.results = [];
+          state.activeRank = null;
+          setStatus("error", "检索失败", apiErrorMessage(error));
+        } finally {
+          state.busy = false;
+          render();
+        }
+      }
+
+      async function checkHealth() {
+        setStatus("", "健康检查", "正在调用 /health ...");
+        try {
+          const data = await requestJson("/health");
+          els.healthOutput.textContent = JSON.stringify(data, null, 2);
+          setStatus("ok", "后端可用", "vectors=" + data.vector_count + "，index_loaded=" + data.index_loaded + "。");
+        } catch (error) {
+          els.healthOutput.textContent = apiErrorMessage(error);
+          setStatus("error", "后端不可达", apiErrorMessage(error));
+        }
+      }
+
+      async function loadBasemaps() {
+        els.basemapStatus.textContent = "正在读取 /offline/basemaps ...";
+        try {
+          const items = await requestJson("/offline/basemaps");
+          const usable = items.filter((item) => item.bounds && item.tile_url_template && !item.error);
+          if (!usable.length) {
+            state.basemaps = [];
+            state.basemapSources = [];
+            els.basemapStatus.textContent = items.length
+              ? "发现底图文件，但无法读取可用范围。"
+              : "未发现底图。可设置 LOCAL_AEF_BASEMAP_DIR 指向 tif 目录。";
+            draw();
+            return;
+          }
+
+          state.basemapSources = usable;
+          refreshVisibleBasemapTiles();
+        } catch (error) {
+          state.basemaps = [];
+          state.basemapSources = [];
+          els.basemapStatus.textContent = "读取底图失败：" + apiErrorMessage(error);
+          draw();
+        }
+      }
+
+      function refreshVisibleBasemapTiles() {
+        if (!state.basemapSources.length) {
+          state.basemaps = [];
+          return;
+        }
+        const z = state.tileZoom;
+        const tileItems = [];
+        for (const source of state.basemapSources) {
+          const range = visibleTileRange(source.bounds, z);
+          if (!range) continue;
+          for (let x = range.minX; x <= range.maxX; x += 1) {
+            for (let y = range.minY; y <= range.maxY; y += 1) {
+              const url = source.tile_url_template
+                .replace("{z}", String(z))
+                .replace("{x}", String(x))
+                .replace("{y}", String(y));
+              tileItems.push({
+                key: source.id + ":" + z + ":" + x + ":" + y,
+                name: source.name,
+                bounds: basemapTileBounds(source.bounds, z, x, y),
+                url,
+              });
+            }
+          }
+        }
+
+        let newlyRequested = 0;
+        state.basemaps = tileItems.map((item) => {
+          let image = state.tileCache.get(item.key);
+          if (!image) {
+            image = new Image();
+            image.onload = () => draw();
+            image.onerror = () => {
+              els.basemapStatus.textContent = "底图瓦片加载失败：" + item.name;
+            };
+            image.src = item.url;
+            state.tileCache.set(item.key, image);
+            newlyRequested += 1;
+          }
+          return { ...item, image };
+        });
+        const names = [...new Set(state.basemapSources.map((item) => item.name))].join(", ");
+        els.basemapStatus.textContent =
+          "底图：" + names + "；层级 z=" + z + "；当前视野 " + tileItems.length +
+          " 个瓦片" + (newlyRequested ? "，新增请求 " + newlyRequested + " 个" : "，均已缓存") + "。";
+      }
+
+      function visibleTileRange(bounds, z) {
+        const tilesPerAxis = Math.pow(2, z);
+        const minLon = bounds[0];
+        const minLat = bounds[1];
+        const maxLon = bounds[2];
+        const maxLat = bounds[3];
+        if (
+          state.view.maxLon < minLon ||
+          state.view.minLon > maxLon ||
+          state.view.maxLat < minLat ||
+          state.view.minLat > maxLat
+        ) {
+          return null;
+        }
+        const lonStep = (maxLon - minLon) / tilesPerAxis;
+        const latStep = (maxLat - minLat) / tilesPerAxis;
+        const minX = clamp(Math.floor((state.view.minLon - minLon) / lonStep), 0, tilesPerAxis - 1);
+        const maxX = clamp(Math.floor((state.view.maxLon - minLon) / lonStep), 0, tilesPerAxis - 1);
+        const minY = clamp(Math.floor((maxLat - state.view.maxLat) / latStep), 0, tilesPerAxis - 1);
+        const maxY = clamp(Math.floor((maxLat - state.view.minLat) / latStep), 0, tilesPerAxis - 1);
+        return { minX, maxX, minY, maxY };
+      }
+
+      function basemapTileBounds(bounds, z, x, y) {
+        const minLon = bounds[0];
+        const minLat = bounds[1];
+        const maxLon = bounds[2];
+        const maxLat = bounds[3];
+        const tilesPerAxis = Math.pow(2, z);
+        const lonStep = (maxLon - minLon) / tilesPerAxis;
+        const latStep = (maxLat - minLat) / tilesPerAxis;
+        return [
+          minLon + x * lonStep,
+          maxLat - (y + 1) * latStep,
+          minLon + (x + 1) * lonStep,
+          maxLat - y * latStep,
+        ];
+      }
+
+      els.healthBtn.addEventListener("click", checkHealth);
+      els.reloadBasemapBtn.addEventListener("click", loadBasemaps);
+      els.zoomInBtn.addEventListener("click", () => {
+        const centerLon = (state.view.minLon + state.view.maxLon) / 2;
+        const centerLat = (state.view.minLat + state.view.maxLat) / 2;
+        zoomAt(centerLon, centerLat, 1);
+      });
+      els.zoomOutBtn.addEventListener("click", () => {
+        const centerLon = (state.view.minLon + state.view.maxLon) / 2;
+        const centerLat = (state.view.minLat + state.view.maxLat) / 2;
+        zoomAt(centerLon, centerLat, -1);
+      });
+      els.resetViewBtn.addEventListener("click", resetView);
+      els.addPointBtn.addEventListener("click", () => addPoint(Number(els.lonInput.value), Number(els.latInput.value)));
+      els.searchBtn.addEventListener("click", runSearch);
+      els.removeLastBtn.addEventListener("click", () => {
+        state.points.pop();
+        state.results = [];
+        state.activeRank = null;
+        setStatus("", "已移除末点", "当前剩余 " + state.points.length + " 个查询点。");
+        render();
+      });
+      els.clearBtn.addEventListener("click", () => {
+        state.points = [];
+        state.results = [];
+        state.activeRank = null;
+        setStatus("", "已清空", "可以重新选点。");
+        render();
+      });
+
+      els.canvas.addEventListener("mousedown", (event) => {
+        state.drag = {
+          lastX: event.clientX,
+          lastY: event.clientY,
+          moved: 0,
+        };
+        els.canvas.classList.add("dragging");
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (!state.drag) return;
+        state.suppressNextClick = state.drag.moved > 5;
+        state.drag = null;
+        els.canvas.classList.remove("dragging");
+      });
+
+      els.canvas.addEventListener("mousemove", (event) => {
+        if (state.drag) {
+          const rect = els.canvas.getBoundingClientRect();
+          const scaleX = els.canvas.width / rect.width;
+          const scaleY = els.canvas.height / rect.height;
+          const dx = (event.clientX - state.drag.lastX) * scaleX;
+          const dy = (event.clientY - state.drag.lastY) * scaleY;
+          state.drag.lastX = event.clientX;
+          state.drag.lastY = event.clientY;
+          state.drag.moved += Math.abs(dx) + Math.abs(dy);
+          panByCanvasDelta(dx, dy);
+          return;
+        }
+        const point = canvasToLonLat(event.offsetX, event.offsetY);
+        if (inBounds(point.lon, point.lat)) {
+          els.coordReadout.textContent = "lon=" + point.lon.toFixed(6) + ", lat=" + point.lat.toFixed(6);
+        } else {
+          els.coordReadout.textContent = "坐标超出画布范围。";
+        }
+      });
+
+      els.canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const point = canvasToLonLat(event.offsetX, event.offsetY);
+        zoomAt(point.lon, point.lat, event.deltaY < 0 ? 1 : -1);
+      }, { passive: false });
+
+      els.canvas.addEventListener("click", (event) => {
+        if (state.suppressNextClick) {
+          state.suppressNextClick = false;
+          return;
+        }
+        const point = canvasToLonLat(event.offsetX, event.offsetY);
+        els.lonInput.value = point.lon.toFixed(6);
+        els.latInput.value = point.lat.toFixed(6);
+        addPoint(point.lon, point.lat);
+      });
+
+      window.addEventListener("resize", draw);
+
+      loadStoredParams();
+      render();
+      loadBasemaps();
+    </script>
+  </body>
+</html>

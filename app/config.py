@@ -24,6 +24,8 @@ class Settings:
     coarse_projection_path: Path | None = None
     coarse_info_path: Path | None = None
     coarse_block_rows: int = 250_000
+    basemap_dir: Path | None = None
+    basemap_cache_dir: Path | None = None
 
 
 def get_settings() -> Settings:
@@ -47,4 +49,11 @@ def get_settings() -> Settings:
         coarse_projection_path=Path(os.getenv("LOCAL_AEF_COARSE_PROJECTION_PATH", derived_dir / "coarse_projection.npy")),
         coarse_info_path=Path(os.getenv("LOCAL_AEF_COARSE_INFO_PATH", derived_dir / "coarse_info.json")),
         coarse_block_rows=int(os.getenv("LOCAL_AEF_COARSE_BLOCK_ROWS", "250000")),
+        basemap_dir=Path(
+            os.getenv(
+                "LOCAL_AEF_BASEMAP_DIR",
+                "/mnt_llm_A100_V1/googlemap_dataset/shuijingweitu_c40/Ningbo/ningbo-wholeimage/L17",
+            )
+        ),
+        basemap_cache_dir=Path(os.getenv("LOCAL_AEF_BASEMAP_CACHE_DIR", derived_dir / "offline_basemap_cache")),
     )

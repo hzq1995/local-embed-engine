@@ -28,6 +28,10 @@ echo "Derived Dir: $LOCAL_AEF_DERIVED_DIR"
 echo "=========================================="
 echo ""
 
+# 离线地图服务
+echo "Starting offline map service..."
+echo "http://127.0.0.1:8010/offline/point-query"
+
 # 启动后端服务
 uvicorn app.main:app \
   --host "$LOCAL_AEF_HOST" \
