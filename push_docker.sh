@@ -9,9 +9,9 @@ set -e  # 任何命令失败时退出
 # ========== 配置部分 ==========
 REGISTRY="10.200.53.208"  # 实际仓库地址
 DOCKER_USER="zrzyb_003062"
-DOCKER_PASSWORD="Zjlab123"
+DOCKER_PASSWORD="Zrzyb123"
 IMAGE_NAME="local-embed-engine"
-IMAGE_TAG="v6-olmo"
+IMAGE_TAG="v7-tif-api"
 FULL_IMAGE_NAME="${REGISTRY}/${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # 获取当前时间作为版本号
