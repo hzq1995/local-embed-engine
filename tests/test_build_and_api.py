@@ -17,6 +17,7 @@ from rasterio.transform import from_origin
 from app.config import Settings
 from app.main import create_app
 from app.services.build_service import build_index
+from scripts.build_coarse_index import build_coarse_index
 
 
 def haversine_distance_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
@@ -214,6 +215,82 @@ class BuildAndApiTests(unittest.TestCase):
                 json={"embedding": point_payload["embedding"], "top_k": 1001},
             )
             self.assertEqual(invalid_top_k.status_code, 422)
+
+    def test_coarse_search_mode_uses_sidecar_index(self) -> None:
+        info = build_coarse_index(
+            self.derived_dir,
+            stride=2,
+            reduced_dim=8,
+            block_rows=4,
+            projection_seed=123,
+        )
+        self.assertEqual(info["reduced_dim"], 8)
+        self.assertEqual(info["stride"], 2)
+        self.assertTrue((self.derived_dir / "coarse_embeddings_i8.npy").exists())
+        self.assertTrue((self.derived_dir / "coarse_ids.npy").exists())
+        self.assertTrue((self.derived_dir / "coarse_projection.npy").exists())
+        self.assertTrue((self.derived_dir / "coarse_info.json").exists())
+
+        coarse_embeddings = np.load(self.derived_dir / "coarse_embeddings_i8.npy", mmap_mode="r")
+        self.assertEqual(coarse_embeddings.dtype, np.int8)
+        self.assertEqual(coarse_embeddings.shape[1], 8)
+
+        app = create_app(self._settings())
+        with TestClient(app) as client:
+            health = client.get("/health")
+            self.assertEqual(health.status_code, 200)
+            self.assertTrue(health.json()["coarse_index_loaded"])
+            self.assertEqual(health.json()["coarse_embedding_dim"], 8)
+
+            point_response = client.post("/embedding/by-point", json={"lon": 121.546, "lat": 29.868})
+            self.assertEqual(point_response.status_code, 200)
+            point_payload = point_response.json()
+            self.assertEqual(len(point_payload["embedding"]), 64)
+
+            fine_response = client.post(
+                "/search/by-embedding",
+                json={
+                    "embedding": point_payload["embedding"],
+                    "top_k": 3,
+                    "bbox": [121.5400, 29.8640, 121.5480, 29.8720],
+                    "search_mode": "fine",
+                },
+            )
+            self.assertEqual(fine_response.status_code, 200)
+            self.assertGreaterEqual(fine_response.json()["result_count"], 1)
+            self.assertEqual(len(fine_response.json()["results"][0]["embedding"]), 64)
+
+            coarse_response = client.post(
+                "/search/by-embedding",
+                json={
+                    "embedding": point_payload["embedding"],
+                    "top_k": 3,
+                    "bbox": [121.5400, 29.8640, 121.5480, 29.8720],
+                    "search_mode": "coarse",
+                },
+            )
+            self.assertEqual(coarse_response.status_code, 200)
+            coarse_payload = coarse_response.json()
+            self.assertGreaterEqual(coarse_payload["result_count"], 1)
+            self.assertLessEqual(coarse_payload["result_count"], 3)
+            self.assertEqual(len(coarse_payload["results"][0]["embedding"]), 8)
+
+    def test_coarse_search_mode_requires_sidecar_index(self) -> None:
+        app = create_app(self._settings())
+        with TestClient(app) as client:
+            point_response = client.post("/embedding/by-point", json={"lon": 121.546, "lat": 29.868})
+            self.assertEqual(point_response.status_code, 200)
+            response = client.post(
+                "/search/by-embedding",
+                json={
+                    "embedding": point_response.json()["embedding"],
+                    "top_k": 3,
+                    "bbox": [121.5400, 29.8640, 121.5480, 29.8720],
+                    "search_mode": "coarse",
+                },
+            )
+            self.assertEqual(response.status_code, 422)
+            self.assertIn("Coarse index is not available", response.json()["detail"])
 
     def test_build_fails_fast_on_zero_vector_and_reports_location(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

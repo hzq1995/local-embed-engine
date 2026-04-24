@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Literal, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -13,6 +13,10 @@ class HealthResponse(BaseModel):
     vector_count: int
     build_time: Optional[str] = None
     index_type: Optional[str] = None
+    coarse_index_loaded: bool = False
+    coarse_vector_count: int = 0
+    coarse_embedding_dim: Optional[int] = None
+    coarse_stride: Optional[int] = None
 
 
 class IndexInfoResponse(BaseModel):
@@ -27,6 +31,10 @@ class IndexInfoResponse(BaseModel):
     vector_count: int
     build_time: Optional[str] = None
     index_type: Optional[str] = None
+    coarse_index_loaded: bool = False
+    coarse_vector_count: int = 0
+    coarse_embedding_dim: Optional[int] = None
+    coarse_stride: Optional[int] = None
 
 
 class PointRequest(BaseModel):
@@ -46,6 +54,7 @@ class PointEmbeddingResponse(BaseModel):
 
 class EmbeddingSearchRequest(BaseModel):
     embedding: List[float]
+    search_mode: Literal["fine", "coarse"] = "fine"
     top_k: int = Field(default=10, ge=1, le=1000)
     min_distance_m: float = Field(default=0, ge=0)
     min_score: float = Field(default=0.0, ge=0, le=1)

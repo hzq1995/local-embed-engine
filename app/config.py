@@ -19,6 +19,11 @@ class Settings:
     embeddings_path: Path
     index_path: Path
     build_info_path: Path
+    coarse_embeddings_path: Path | None = None
+    coarse_ids_path: Path | None = None
+    coarse_projection_path: Path | None = None
+    coarse_info_path: Path | None = None
+    coarse_block_rows: int = 250_000
 
 
 def get_settings() -> Settings:
@@ -37,4 +42,9 @@ def get_settings() -> Settings:
         embeddings_path=Path(os.getenv("LOCAL_AEF_EMBEDDINGS_PATH", derived_dir / "embeddings.npy")),
         index_path=Path(os.getenv("LOCAL_AEF_INDEX_PATH", derived_dir / "faiss.index")),
         build_info_path=Path(os.getenv("LOCAL_AEF_BUILD_INFO_PATH", derived_dir / "build_info.json")),
+        coarse_embeddings_path=Path(os.getenv("LOCAL_AEF_COARSE_EMBEDDINGS_PATH", derived_dir / "coarse_embeddings_i8.npy")),
+        coarse_ids_path=Path(os.getenv("LOCAL_AEF_COARSE_IDS_PATH", derived_dir / "coarse_ids.npy")),
+        coarse_projection_path=Path(os.getenv("LOCAL_AEF_COARSE_PROJECTION_PATH", derived_dir / "coarse_projection.npy")),
+        coarse_info_path=Path(os.getenv("LOCAL_AEF_COARSE_INFO_PATH", derived_dir / "coarse_info.json")),
+        coarse_block_rows=int(os.getenv("LOCAL_AEF_COARSE_BLOCK_ROWS", "250000")),
     )

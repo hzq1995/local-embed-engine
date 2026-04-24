@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import sys
+import time
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -65,7 +66,9 @@ def run_flow(
     min_distance_m: float,
     min_score: float,
     search_radius_km: float,
+    search_mode: str,
 ) -> dict:
+    started_at = time.perf_counter()
     point_records: list[dict] = []
     embeddings: list[np.ndarray] = []
 
@@ -96,42 +99,26 @@ def run_flow(
             "bbox": search_bbox,
             "min_distance_m": min_distance_m,
             "min_score": min_score,
+            "search_mode": search_mode,
         },
     )
 
     return {
         "points": point_records,
         "avg_embedding_dim": int(avg_embedding.shape[0]),
+        "search_mode": search_mode,
         "search_center": {"lon": center_lon, "lat": center_lat},
         "search_bbox": search_bbox,
         "search_response": search_response,
+        "elapsed_seconds": float(time.perf_counter() - started_at),
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Test point-query flow over tif-search-engine HTTP APIs.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8010")
-    parser.add_argument("--top-k", type=int, default=10)
-    parser.add_argument("--min-distance-m", type=float, default=50.0)
-    parser.add_argument("--min-score", type=float, default=0.0)
-    parser.add_argument("--search-radius-km", type=float, default=5.0)
-    parser.add_argument("--json", action="store_true", help="Print full JSON result.")
-    args = parser.parse_args()
-
-    try:
-        result = run_flow(
-            base_url=args.base_url,
-            top_k=args.top_k,
-            min_distance_m=args.min_distance_m,
-            min_score=args.min_score,
-            search_radius_km=args.search_radius_km,
-        )
-    except Exception as exc:
-        print(str(exc), file=sys.stderr)
-        raise SystemExit(1) from exc
-
+def _print_result(base_url: str, result: dict) -> None:
     print("Point query flow completed.")
-    print(f"Base URL: {args.base_url}")
+    print(f"Base URL: {base_url}")
+    print(f"Search mode: {result['search_mode']}")
+    print(f"Elapsed: {result['elapsed_seconds']:.3f}s")
     print(f"Embedding dim: {result['avg_embedding_dim']}")
     print(f"Search center: {result['search_center']}")
     print(f"Search bbox: {result['search_bbox']}")
@@ -147,11 +134,63 @@ def main() -> None:
         print(
             f"  rank={item['rank']} score={item['score']:.6f} "
             f"lon={item['lon']:.6f} lat={item['lat']:.6f} "
-            f"row={item['row']} col={item['col']}"
+            f"row={item['row']} col={item['col']} embedding_dim={len(item.get('embedding', []))}"
         )
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Test point-query flow over tif-search-engine HTTP APIs.")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8010")
+    parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument("--min-distance-m", type=float, default=50.0)
+    parser.add_argument("--min-score", type=float, default=0.0)
+    parser.add_argument("--search-radius-km", type=float, default=10.0)
+    parser.add_argument(
+        "--search-mode",
+        choices=["both", "fine", "coarse"],
+        default="both",
+        help="Search mode to test. Default runs fine first, then coarse.",
+    )
+    parser.add_argument("--json", action="store_true", help="Print full JSON result.")
+    args = parser.parse_args()
+
+    search_modes = ["fine", "coarse"] if args.search_mode == "both" else [args.search_mode]
+    results: list[dict] = []
+    try:
+        for search_mode in search_modes:
+            results.append(
+                run_flow(
+                    base_url=args.base_url,
+                    top_k=args.top_k,
+                    min_distance_m=args.min_distance_m,
+                    min_score=args.min_score,
+                    search_radius_km=args.search_radius_km,
+                    search_mode=search_mode,
+                )
+            )
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    for index, result in enumerate(results):
+        if index:
+            print("")
+        _print_result(args.base_url, result)
+
+    if len(results) > 1:
+        timings = {item["search_mode"]: item["elapsed_seconds"] for item in results}
+        fine_time = timings.get("fine")
+        coarse_time = timings.get("coarse")
+        print("")
+        print("Time comparison:")
+        for item in results:
+            print(f"  {item['search_mode']}: {item['elapsed_seconds']:.3f}s")
+        if fine_time is not None and coarse_time is not None and coarse_time > 0:
+            print(f"  fine/coarse: {fine_time / coarse_time:.2f}x")
+
     if args.json:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        payload = results[0] if len(results) == 1 else {"runs": results}
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ export default function PointQueryPanel({ mapReady, apiStatus, onCheckHealth, sc
     minDistanceM, setMinDistanceM,
     minScore, setMinScore,
     searchRadiusKm, setSearchRadiusKm,
+    useCoarseSearch, setUseCoarseSearch,
     selectedPoints,
     avgEmbedding,
     searchResults,
@@ -95,6 +96,16 @@ export default function PointQueryPanel({ mapReady, apiStatus, onCheckHealth, sc
             onChange={(e) => setMinScore(Number(e.target.value))}
           />
         </div>
+
+        <label className="checkbox" htmlFor="pq-useCoarseSearch">
+          <input
+            id="pq-useCoarseSearch"
+            type="checkbox"
+            checked={useCoarseSearch}
+            onChange={(e) => setUseCoarseSearch(e.target.checked)}
+          />
+          使用粗糙索引
+        </label>
 
         <div className="button-row">
           <button
@@ -184,7 +195,7 @@ export default function PointQueryPanel({ mapReady, apiStatus, onCheckHealth, sc
       <section className="panel results-panel">
         <div className="results-summary">
           {searchResults.length
-            ? `共 ${searchResults.length} 个结果，搜索半径 ${searchRadiusKm} km`
+            ? `共 ${searchResults.length} 个结果，搜索半径 ${searchRadiusKm} km，${useCoarseSearch ? "粗糙索引" : "精细索引"}`
             : "暂无结果"}
         </div>
         <ResultList results={searchResults} activeRank={activeRank} onSelect={handleSelectResult} />
@@ -270,6 +281,7 @@ export function usePointQueryState(mapInstanceRef) {
   const [minDistanceM, setMinDistanceM] = useLocalStorage("pq.minDistanceM", 50);
   const [minScore, setMinScore] = useLocalStorage("pq.minScore", 0.9);
   const [searchRadiusKm, setSearchRadiusKm] = useLocalStorage("pq.searchRadiusKm", 5);
+  const [useCoarseSearch, setUseCoarseSearch] = useLocalStorage("pq.useCoarseSearch", false);
   const [savedCategories, setSavedCategories] = useLocalStorage("pq.savedCategories", []);
   const [selectedPoints, setSelectedPoints] = useState([]); // [{ lat, lng, embedding }]
   const [searchResults, setSearchResults] = useState([]);
@@ -450,6 +462,7 @@ export function usePointQueryState(mapInstanceRef) {
 
     const requestBody = {
       embedding: avgEmbedding,
+      search_mode: useCoarseSearch ? "coarse" : "fine",
       top_k: topK,
       min_distance_m: minDistanceM,
       min_score: minScore,
@@ -465,7 +478,7 @@ export function usePointQueryState(mapInstanceRef) {
       setSearchResults(payload.results || []);
       setRequestStatus({
         kind: "ok",
-        text: `检索完成，${selectedPoints.length} 个查询点均值，返回 ${payload.result_count} 个结果`,
+        text: `检索完成，${selectedPoints.length} 个查询点均值，${useCoarseSearch ? "粗糙索引" : "精细索引"}返回 ${payload.result_count} 个结果`,
       });
     } catch (error) {
       clearResultsOnly();
@@ -492,6 +505,7 @@ export function usePointQueryState(mapInstanceRef) {
     minDistanceM, setMinDistanceM,
     minScore, setMinScore,
     searchRadiusKm, setSearchRadiusKm,
+    useCoarseSearch, setUseCoarseSearch,
     selectedPoints,
     avgEmbedding,
     searchResults,

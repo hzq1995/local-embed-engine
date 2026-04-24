@@ -34,6 +34,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             embeddings_path=settings.embeddings_path,
             build_info_path=settings.build_info_path,
             index_path=settings.index_path,
+            coarse_embeddings_path=settings.coarse_embeddings_path,
+            coarse_ids_path=settings.coarse_ids_path,
+            coarse_projection_path=settings.coarse_projection_path,
+            coarse_info_path=settings.coarse_info_path,
+            coarse_block_rows=settings.coarse_block_rows,
         )
         app.state.settings = settings
         app.state.query_service = QueryService(
@@ -58,6 +63,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             vector_count=service.index_bundle.vector_count,
             build_time=build_info.get("build_time"),
             index_type=service.index_bundle.index_type if service.index_bundle.vector_count else build_info.get("index_type"),
+            coarse_index_loaded=service.index_bundle.coarse_index_loaded,
+            coarse_vector_count=service.index_bundle.coarse_index.vector_count if service.index_bundle.coarse_index else 0,
+            coarse_embedding_dim=service.index_bundle.coarse_index.embedding_dim if service.index_bundle.coarse_index else None,
+            coarse_stride=service.index_bundle.coarse_index.stride if service.index_bundle.coarse_index else None,
         )
 
     @app.get("/index/info", response_model=IndexInfoResponse)
@@ -76,6 +85,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             vector_count=service.index_bundle.vector_count,
             build_time=build_info.get("build_time"),
             index_type=service.index_bundle.index_type if service.index_bundle.vector_count else build_info.get("index_type"),
+            coarse_index_loaded=service.index_bundle.coarse_index_loaded,
+            coarse_vector_count=service.index_bundle.coarse_index.vector_count if service.index_bundle.coarse_index else 0,
+            coarse_embedding_dim=service.index_bundle.coarse_index.embedding_dim if service.index_bundle.coarse_index else None,
+            coarse_stride=service.index_bundle.coarse_index.stride if service.index_bundle.coarse_index else None,
         )
 
     @app.post("/embedding/by-point", response_model=PointEmbeddingResponse)
@@ -89,15 +102,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/search/by-embedding", response_model=EmbeddingSearchResponse)
     def search_by_embedding(request: EmbeddingSearchRequest) -> EmbeddingSearchResponse:
         service = app.state.query_service
-        return EmbeddingSearchResponse.model_validate(
-            service.search_by_embedding(
-                request.embedding,
-                request.top_k,
-                request.bbox,
-                request.min_distance_m,
-                request.min_score,
+        try:
+            return EmbeddingSearchResponse.model_validate(
+                service.search_by_embedding(
+                    request.embedding,
+                    request.top_k,
+                    request.bbox,
+                    request.min_distance_m,
+                    request.min_score,
+                    request.search_mode,
+                )
             )
-        )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/embedding/by-bbox", response_model=BboxEmbeddingResponse)
     def embedding_by_bbox(request: BboxEmbeddingRequest) -> BboxEmbeddingResponse:

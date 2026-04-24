@@ -66,6 +66,7 @@ class QueryService:
         bbox: list[float] | None,
         min_distance_m: float,
         min_score: float = 0.0,
+        search_mode: str = "fine",
     ) -> dict:
         effective_bbox = self.boundary.bbox
         if bbox is not None:
@@ -79,6 +80,7 @@ class QueryService:
             bbox=effective_bbox,
             min_distance_m=min_distance_m,
             min_score=min_score,
+            search_mode=search_mode,
         )
         return {"top_k": top_k, "result_count": len(results), "results": results}
 
