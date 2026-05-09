@@ -347,25 +347,6 @@
         </section>
 
         <section class="panel">
-          <h2>手动选点</h2>
-          <div class="grid-2">
-            <div>
-              <label for="lonInput">经度 lon</label>
-              <input id="lonInput" type="number" step="0.000001" value="121.544000" />
-            </div>
-            <div>
-              <label for="latInput">纬度 lat</label>
-              <input id="latInput" type="number" step="0.000001" value="29.868300" />
-            </div>
-          </div>
-          <div class="button-row">
-            <button type="button" class="primary" id="addPointBtn">添加查询点</button>
-            <button type="button" id="removeLastBtn">移除末点</button>
-            <button type="button" id="clearBtn">清空</button>
-          </div>
-        </section>
-
-        <section class="panel">
           <h2>搜索参数</h2>
           <div class="grid-2">
             <div>
@@ -394,6 +375,25 @@
           </div>
           <div class="button-row">
             <button type="button" class="primary" id="searchBtn" disabled>搜索相似位置</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>手动选点</h2>
+          <div class="grid-2">
+            <div>
+              <label for="lonInput">经度 lon</label>
+              <input id="lonInput" type="number" step="0.000001" value="121.544000" />
+            </div>
+            <div>
+              <label for="latInput">纬度 lat</label>
+              <input id="latInput" type="number" step="0.000001" value="29.868300" />
+            </div>
+          </div>
+          <div class="button-row">
+            <button type="button" class="primary" id="addPointBtn">添加查询点</button>
+            <button type="button" id="removeLastBtn">移除末点</button>
+            <button type="button" id="clearBtn">清空</button>
           </div>
         </section>
 
@@ -444,7 +444,7 @@
         maxLat: 30.49199632,
       };
       const MIN_TILE_Z = 3;
-      const MAX_TILE_Z = 7;
+      const MAX_TILE_Z = 10;
 
       const state = {
         points: [],
@@ -455,6 +455,8 @@
         basemapSources: [],
         tileCache: new Map(),
         tileZoom: MIN_TILE_Z,
+        tileVersion: 0,
+        tileRefreshTimer: null,
         view: { ...BOUNDS },
         drag: null,
         suppressNextClick: false,
@@ -573,7 +575,7 @@
       function setView(view, tileZoom) {
         state.view = normalizeView(view);
         if (Number.isInteger(tileZoom)) state.tileZoom = clamp(tileZoom, MIN_TILE_Z, MAX_TILE_Z);
-        refreshVisibleBasemapTiles();
+        scheduleBasemapTileRefresh();
         draw();
       }
 
@@ -607,12 +609,13 @@
         const view = state.view;
         const lonShift = -(deltaX / w) * (view.maxLon - view.minLon);
         const latShift = (deltaY / h) * (view.maxLat - view.minLat);
-        setView({
+        state.view = normalizeView({
           minLon: view.minLon + lonShift,
           maxLon: view.maxLon + lonShift,
           minLat: view.minLat + latShift,
           maxLat: view.maxLat + latShift,
         });
+        draw();
       }
 
       function draw() {
@@ -687,6 +690,7 @@
 
       function drawBasemaps() {
         for (const item of state.basemaps) {
+          if (item.z !== state.tileZoom) continue;
           if (!item.image || !item.image.complete || !item.bounds) continue;
           const leftTop = lonLatToCanvas(item.bounds[0], item.bounds[3]);
           const rightBottom = lonLatToCanvas(item.bounds[2], item.bounds[1]);
@@ -928,6 +932,7 @@
 
           state.basemapSources = usable;
           refreshVisibleBasemapTiles();
+          draw();
         } catch (error) {
           state.basemaps = [];
           state.basemapSources = [];
@@ -937,6 +942,8 @@
       }
 
       function refreshVisibleBasemapTiles() {
+        state.tileVersion += 1;
+        const version = state.tileVersion;
         if (!state.basemapSources.length) {
           state.basemaps = [];
           return;
@@ -948,6 +955,8 @@
           if (!range) continue;
           for (let x = range.minX; x <= range.maxX; x += 1) {
             for (let y = range.minY; y <= range.maxY; y += 1) {
+              const bounds = basemapTileBounds(source.bounds, z, x, y);
+              if (!boundsIntersectView(bounds)) continue;
               const url = source.tile_url_template
                 .replace("{z}", String(z))
                 .replace("{x}", String(x))
@@ -955,7 +964,8 @@
               tileItems.push({
                 key: source.id + ":" + z + ":" + x + ":" + y,
                 name: source.name,
-                bounds: basemapTileBounds(source.bounds, z, x, y),
+                z,
+                bounds,
                 url,
               });
             }
@@ -967,9 +977,13 @@
           let image = state.tileCache.get(item.key);
           if (!image) {
             image = new Image();
-            image.onload = () => draw();
+            image.onload = () => {
+              if (version === state.tileVersion) draw();
+            };
             image.onerror = () => {
-              els.basemapStatus.textContent = "底图瓦片加载失败：" + item.name;
+              if (version === state.tileVersion) {
+                els.basemapStatus.textContent = "底图瓦片加载失败：" + item.name;
+              }
             };
             image.src = item.url;
             state.tileCache.set(item.key, image);
@@ -983,27 +997,45 @@
           " 个瓦片" + (newlyRequested ? "，新增请求 " + newlyRequested + " 个" : "，均已缓存") + "。";
       }
 
+      function scheduleBasemapTileRefresh(delayMs = 160) {
+        if (state.tileRefreshTimer) clearTimeout(state.tileRefreshTimer);
+        state.tileRefreshTimer = setTimeout(() => {
+          state.tileRefreshTimer = null;
+          refreshVisibleBasemapTiles();
+          draw();
+        }, delayMs);
+      }
+
       function visibleTileRange(bounds, z) {
         const tilesPerAxis = Math.pow(2, z);
         const minLon = bounds[0];
         const minLat = bounds[1];
         const maxLon = bounds[2];
         const maxLat = bounds[3];
-        if (
-          state.view.maxLon < minLon ||
-          state.view.minLon > maxLon ||
-          state.view.maxLat < minLat ||
-          state.view.minLat > maxLat
-        ) {
+        const overlapMinLon = Math.max(state.view.minLon, minLon);
+        const overlapMaxLon = Math.min(state.view.maxLon, maxLon);
+        const overlapMinLat = Math.max(state.view.minLat, minLat);
+        const overlapMaxLat = Math.min(state.view.maxLat, maxLat);
+        if (overlapMinLon >= overlapMaxLon || overlapMinLat >= overlapMaxLat) {
           return null;
         }
         const lonStep = (maxLon - minLon) / tilesPerAxis;
         const latStep = (maxLat - minLat) / tilesPerAxis;
-        const minX = clamp(Math.floor((state.view.minLon - minLon) / lonStep), 0, tilesPerAxis - 1);
-        const maxX = clamp(Math.floor((state.view.maxLon - minLon) / lonStep), 0, tilesPerAxis - 1);
-        const minY = clamp(Math.floor((maxLat - state.view.maxLat) / latStep), 0, tilesPerAxis - 1);
-        const maxY = clamp(Math.floor((maxLat - state.view.minLat) / latStep), 0, tilesPerAxis - 1);
+        const epsilon = 1e-12;
+        const minX = clamp(Math.floor((overlapMinLon - minLon) / lonStep), 0, tilesPerAxis - 1);
+        const maxX = clamp(Math.floor((overlapMaxLon - minLon - epsilon) / lonStep), 0, tilesPerAxis - 1);
+        const minY = clamp(Math.floor((maxLat - overlapMaxLat) / latStep), 0, tilesPerAxis - 1);
+        const maxY = clamp(Math.floor((maxLat - overlapMinLat - epsilon) / latStep), 0, tilesPerAxis - 1);
         return { minX, maxX, minY, maxY };
+      }
+
+      function boundsIntersectView(bounds) {
+        return (
+          bounds[0] < state.view.maxLon &&
+          bounds[2] > state.view.minLon &&
+          bounds[1] < state.view.maxLat &&
+          bounds[3] > state.view.minLat
+        );
       }
 
       function basemapTileBounds(bounds, z, x, y) {
@@ -1066,6 +1098,7 @@
         state.suppressNextClick = state.drag.moved > 5;
         state.drag = null;
         els.canvas.classList.remove("dragging");
+        scheduleBasemapTileRefresh(0);
       });
 
       els.canvas.addEventListener("mousemove", (event) => {

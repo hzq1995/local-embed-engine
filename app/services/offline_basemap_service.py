@@ -14,6 +14,7 @@ from rasterio.windows import Window
 
 
 TILE_SIZE = 256
+MAX_TILE_Z = 10
 
 
 def list_basemaps(basemap_dir: Path | None, cache_dir: Path | None) -> list[dict[str, Any]]:
@@ -56,7 +57,7 @@ def get_basemap_tile_path(
     x: int,
     y: int,
 ) -> Path | None:
-    if z < 0 or z > 8:
+    if z < 0 or z > MAX_TILE_Z:
         return None
     tiles_per_axis = 2**z
     if x < 0 or y < 0 or x >= tiles_per_axis or y >= tiles_per_axis:

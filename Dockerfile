@@ -1,5 +1,5 @@
-# 使用现有的synrs3d_env镜像作为基础
-FROM local-embed-engine:v4
+# 使用现有的local-embed-engine镜像作为基础
+FROM local-embed-engine:v10
 
 # 设置工作目录
 WORKDIR /app

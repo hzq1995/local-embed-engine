@@ -13,6 +13,7 @@ venv/
 env/
 .env
 *.md
+wasted/
 
 # Jupyter
 .ipynb_checkpoints/

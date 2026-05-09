@@ -11,7 +11,7 @@ REGISTRY="10.200.53.208"  # 实际仓库地址
 DOCKER_USER="zrzyb_003062"
 DOCKER_PASSWORD="Zrzyb123"
 IMAGE_NAME="local-embed-engine"
-IMAGE_TAG="v9-offline-map"
+IMAGE_TAG="v12"
 FULL_IMAGE_NAME="${REGISTRY}/${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # 获取当前时间作为版本号

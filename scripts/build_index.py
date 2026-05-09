@@ -17,9 +17,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build Ningbo local AEF index.")
     # /mnt/task4-data-nas/data/olmoearth/ningbo_beilun_embedding/olmo_earth_one_time_full_tuning/patch_euqal_1
     # /mnt/task4-data-nas/GEE-download/zwang/output/extract_embeddings_beilun_2m
-    parser.add_argument("--data-dir", type=Path, default='/mnt/task4-data-nas/data/olmoearth/ningbo_beilun_embedding/olmo_earth_one_time_full_tuning/patch_euqal_1')
+    parser.add_argument("--data-dir", type=Path, default='/mnt/task4-data/zhejiang_zwang/aef_embedding_fusion/beilun_fused_embeddings')
     parser.add_argument("--boundary-kml", type=Path, default='/mnt/task4-data-nas/data/beilun.kml')
-    parser.add_argument("--output-dir", type=Path, default='/mnt/task4-data-nas/data/olmoearth/ningbo_beilun_embedding/olmo_earth_one_time_full_tuning/npy_patch_euqal_1')
+    parser.add_argument("--output-dir", type=Path, default='/mnt/task4-data/zhejiang_zwang/aef_embedding_fusion/npy_beilun_fused_embeddings')
     parser.add_argument("--year", type=int, default=settings.year)
     parser.add_argument("--block-size", type=int, default=512)
     parser.add_argument("--flush-rows", type=int, default=250000)
