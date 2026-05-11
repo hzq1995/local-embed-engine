@@ -457,6 +457,7 @@
         tileZoom: MIN_TILE_Z,
         tileVersion: 0,
         tileRefreshTimer: null,
+        canvasSize: { width: 1100, height: 720, dpr: 1 },
         view: { ...BOUNDS },
         drag: null,
         suppressNextClick: false,
@@ -522,29 +523,99 @@
         return data;
       }
 
-      function lonLatToCanvas(lon, lat) {
-        const pad = 42;
-        const w = els.canvas.width - pad * 2;
-        const h = els.canvas.height - pad * 2;
+      function syncCanvasSize() {
+        const rect = els.canvas.getBoundingClientRect();
+        const width = Math.max(320, rect.width);
+        const height = Math.max(260, rect.height);
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const pixelWidth = Math.round(width * dpr);
+        const pixelHeight = Math.round(height * dpr);
+        const changed =
+          els.canvas.width !== pixelWidth ||
+          els.canvas.height !== pixelHeight ||
+          state.canvasSize.width !== width ||
+          state.canvasSize.height !== height ||
+          state.canvasSize.dpr !== dpr;
+
+        if (changed) {
+          els.canvas.width = pixelWidth;
+          els.canvas.height = pixelHeight;
+          state.canvasSize = { width, height, dpr };
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return changed;
+      }
+
+      function correctedLonScale(view) {
+        const centerLat = (view.minLat + view.maxLat) / 2;
+        return Math.max(0.01, Math.cos((centerLat * Math.PI) / 180));
+      }
+
+      function currentPlotRect() {
+        const width = state.canvasSize.width;
+        const height = state.canvasSize.height;
+        const margin = {
+          left: Math.min(54, Math.max(38, width * 0.06)),
+          right: 18,
+          top: 18,
+          bottom: 38,
+        };
+        const availableW = Math.max(1, width - margin.left - margin.right);
+        const availableH = Math.max(1, height - margin.top - margin.bottom);
         const view = state.view;
-        const x = pad + ((lon - view.minLon) / (view.maxLon - view.minLon)) * w;
-        const y = pad + ((view.maxLat - lat) / (view.maxLat - view.minLat)) * h;
+        const lonDistance = Math.max(1e-9, (view.maxLon - view.minLon) * correctedLonScale(view));
+        const latDistance = Math.max(1e-9, view.maxLat - view.minLat);
+        const mapAspect = lonDistance / latDistance;
+        const availableAspect = availableW / availableH;
+        let plotW = availableW;
+        let plotH = availableH;
+
+        if (availableAspect > mapAspect) {
+          plotH = availableH;
+          plotW = plotH * mapAspect;
+        } else {
+          plotW = availableW;
+          plotH = plotW / mapAspect;
+        }
+
+        return {
+          x: margin.left + (availableW - plotW) / 2,
+          y: margin.top + (availableH - plotH) / 2,
+          width: plotW,
+          height: plotH,
+        };
+      }
+
+      function lonLatToCanvas(lon, lat) {
+        const plot = currentPlotRect();
+        const view = state.view;
+        const x = plot.x + ((lon - view.minLon) / (view.maxLon - view.minLon)) * plot.width;
+        const y = plot.y + ((view.maxLat - lat) / (view.maxLat - view.minLat)) * plot.height;
         return { x, y };
       }
 
       function canvasToLonLat(offsetX, offsetY) {
-        const rect = els.canvas.getBoundingClientRect();
-        const scaleX = els.canvas.width / rect.width;
-        const scaleY = els.canvas.height / rect.height;
-        const x = offsetX * scaleX;
-        const y = offsetY * scaleY;
-        const pad = 42;
-        const w = els.canvas.width - pad * 2;
-        const h = els.canvas.height - pad * 2;
+        const plot = currentPlotRect();
+        if (
+          offsetX < plot.x ||
+          offsetX > plot.x + plot.width ||
+          offsetY < plot.y ||
+          offsetY > plot.y + plot.height
+        ) {
+          return null;
+        }
         const view = state.view;
-        const lon = view.minLon + ((x - pad) / w) * (view.maxLon - view.minLon);
-        const lat = view.maxLat - ((y - pad) / h) * (view.maxLat - view.minLat);
+        const lon = view.minLon + ((offsetX - plot.x) / plot.width) * (view.maxLon - view.minLon);
+        const lat = view.maxLat - ((offsetY - plot.y) / plot.height) * (view.maxLat - view.minLat);
         return { lon, lat };
+      }
+
+      function eventCanvasPoint(event) {
+        const rect = els.canvas.getBoundingClientRect();
+        return {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
       }
 
       function inBounds(lon, lat) {
@@ -603,12 +674,10 @@
       }
 
       function panByCanvasDelta(deltaX, deltaY) {
-        const pad = 42;
-        const w = els.canvas.width - pad * 2;
-        const h = els.canvas.height - pad * 2;
+        const plot = currentPlotRect();
         const view = state.view;
-        const lonShift = -(deltaX / w) * (view.maxLon - view.minLon);
-        const latShift = (deltaY / h) * (view.maxLat - view.minLat);
+        const lonShift = -(deltaX / plot.width) * (view.maxLon - view.minLon);
+        const latShift = (deltaY / plot.height) * (view.maxLat - view.minLat);
         state.view = normalizeView({
           minLon: view.minLon + lonShift,
           maxLon: view.maxLon + lonShift,
@@ -619,21 +688,20 @@
       }
 
       function draw() {
-        const width = els.canvas.width;
-        const height = els.canvas.height;
+        syncCanvasSize();
+        const width = state.canvasSize.width;
+        const height = state.canvasSize.height;
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = "#eef3f7";
         ctx.fillRect(0, 0, width, height);
 
-        const pad = 42;
-        const plotW = width - pad * 2;
-        const plotH = height - pad * 2;
+        const plot = currentPlotRect();
 
         ctx.fillStyle = "#ffffff";
-        ctx.fillRect(pad, pad, plotW, plotH);
+        ctx.fillRect(plot.x, plot.y, plot.width, plot.height);
         ctx.strokeStyle = "#b8c2cc";
         ctx.lineWidth = 1;
-        ctx.strokeRect(pad, pad, plotW, plotH);
+        ctx.strokeRect(plot.x, plot.y, plot.width, plot.height);
 
         drawBasemaps();
 
@@ -641,22 +709,22 @@
         ctx.fillStyle = "#667085";
         ctx.font = "12px ui-monospace, monospace";
         for (let i = 0; i <= 6; i++) {
-          const x = pad + (plotW * i) / 6;
+          const x = plot.x + (plot.width * i) / 6;
           const lon = state.view.minLon + ((state.view.maxLon - state.view.minLon) * i) / 6;
           ctx.beginPath();
-          ctx.moveTo(x, pad);
-          ctx.lineTo(x, pad + plotH);
+          ctx.moveTo(x, plot.y);
+          ctx.lineTo(x, plot.y + plot.height);
           ctx.stroke();
-          ctx.fillText(lon.toFixed(5), x - 34, height - 14);
+          ctx.fillText(lon.toFixed(5), x - 34, Math.min(height - 12, plot.y + plot.height + 22));
         }
         for (let i = 0; i <= 6; i++) {
-          const y = pad + (plotH * i) / 6;
+          const y = plot.y + (plot.height * i) / 6;
           const lat = state.view.maxLat - ((state.view.maxLat - state.view.minLat) * i) / 6;
           ctx.beginPath();
-          ctx.moveTo(pad, y);
-          ctx.lineTo(pad + plotW, y);
+          ctx.moveTo(plot.x, y);
+          ctx.lineTo(plot.x + plot.width, y);
           ctx.stroke();
-          ctx.fillText(lat.toFixed(5), 6, y + 4);
+          ctx.fillText(lat.toFixed(5), Math.max(6, plot.x - 50), y + 4);
         }
 
         for (const item of state.results) {
@@ -1103,28 +1171,31 @@
 
       els.canvas.addEventListener("mousemove", (event) => {
         if (state.drag) {
-          const rect = els.canvas.getBoundingClientRect();
-          const scaleX = els.canvas.width / rect.width;
-          const scaleY = els.canvas.height / rect.height;
-          const dx = (event.clientX - state.drag.lastX) * scaleX;
-          const dy = (event.clientY - state.drag.lastY) * scaleY;
+          const dx = event.clientX - state.drag.lastX;
+          const dy = event.clientY - state.drag.lastY;
           state.drag.lastX = event.clientX;
           state.drag.lastY = event.clientY;
           state.drag.moved += Math.abs(dx) + Math.abs(dy);
           panByCanvasDelta(dx, dy);
           return;
         }
-        const point = canvasToLonLat(event.offsetX, event.offsetY);
-        if (inBounds(point.lon, point.lat)) {
+        const canvasPoint = eventCanvasPoint(event);
+        const point = canvasToLonLat(canvasPoint.x, canvasPoint.y);
+        if (point && inBounds(point.lon, point.lat)) {
           els.coordReadout.textContent = "lon=" + point.lon.toFixed(6) + ", lat=" + point.lat.toFixed(6);
         } else {
-          els.coordReadout.textContent = "坐标超出画布范围。";
+          els.coordReadout.textContent = "坐标超出地图区域。";
         }
       });
 
       els.canvas.addEventListener("wheel", (event) => {
         event.preventDefault();
-        const point = canvasToLonLat(event.offsetX, event.offsetY);
+        const canvasPoint = eventCanvasPoint(event);
+        const point = canvasToLonLat(canvasPoint.x, canvasPoint.y);
+        if (!point) {
+          els.coordReadout.textContent = "坐标超出地图区域。";
+          return;
+        }
         zoomAt(point.lon, point.lat, event.deltaY < 0 ? 1 : -1);
       }, { passive: false });
 
@@ -1133,15 +1204,24 @@
           state.suppressNextClick = false;
           return;
         }
-        const point = canvasToLonLat(event.offsetX, event.offsetY);
+        const canvasPoint = eventCanvasPoint(event);
+        const point = canvasToLonLat(canvasPoint.x, canvasPoint.y);
+        if (!point) {
+          setStatus("", "坐标超出地图区域", "请在地图有效区域内点击选点。");
+          return;
+        }
         els.lonInput.value = point.lon.toFixed(6);
         els.latInput.value = point.lat.toFixed(6);
         addPoint(point.lon, point.lat);
       });
 
-      window.addEventListener("resize", draw);
+      window.addEventListener("resize", () => {
+        syncCanvasSize();
+        draw();
+      });
 
       loadStoredParams();
+      syncCanvasSize();
       render();
       loadBasemaps();
     </script>

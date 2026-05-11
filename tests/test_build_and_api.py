@@ -171,6 +171,8 @@ class BuildAndApiTests(unittest.TestCase):
             self.assertIn("离线选点查询测试", offline_page.text)
             self.assertIn("/embedding/by-point", offline_page.text)
             self.assertIn("/search/by-embedding", offline_page.text)
+            self.assertNotIn("http://", offline_page.text)
+            self.assertNotIn("https://", offline_page.text)
 
             point_response = client.post("/embedding/by-point", json={"lon": 121.546, "lat": 29.868})
             self.assertEqual(point_response.status_code, 200)
