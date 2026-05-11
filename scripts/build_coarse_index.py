@@ -82,10 +82,12 @@ def build_coarse_index(
     if np.any(coarse_ids < 0) or np.any(coarse_ids >= source_count):
         raise ValueError("metadata contains ids outside embeddings.npy row range.")
 
-    use_projection = reduced_dim != source_dim
-    if use_projection:
+    use_random_projection = reduced_dim != source_dim
+    if use_random_projection:
         projection = _build_projection(source_dim, reduced_dim, projection_seed)
-        np.save(coarse_projection_path, projection.astype(np.float32, copy=False))
+    else:
+        projection = np.eye(source_dim, dtype=np.float32)
+    np.save(coarse_projection_path, projection.astype(np.float32, copy=False))
     np.save(coarse_ids_path, coarse_ids.astype(np.int64, copy=False))
 
     output = np.lib.format.open_memmap(
@@ -98,7 +100,7 @@ def build_coarse_index(
         end = min(start + block_rows, int(coarse_ids.shape[0]))
         ids = coarse_ids[start:end]
         vectors = np.asarray(source_embeddings[ids], dtype=np.float32)
-        if use_projection:
+        if use_random_projection:
             projected = normalize_embeddings(vectors @ projection)
         else:
             projected = normalize_embeddings(vectors)

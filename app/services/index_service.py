@@ -16,6 +16,9 @@ except Exception:  # pragma: no cover
     faiss = None
 
 
+NPY_MEMORY_LOAD_THRESHOLD_BYTES = 20 * 1024**3
+
+
 def normalize_embeddings(vectors: np.ndarray) -> np.ndarray:
     vectors = vectors.astype(np.float32, copy=False)
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
@@ -99,7 +102,7 @@ class IndexBundle:
             )
 
         metadata = pd.read_parquet(metadata_path)
-        embeddings = np.load(embeddings_path, mmap_mode="r")
+        embeddings = _load_npy_array(embeddings_path)
         build_info = json.loads(build_info_path.read_text(encoding="utf-8"))
         faiss_index = None
         if faiss is not None and index_path.exists():
@@ -394,9 +397,9 @@ def _load_coarse_index(
         and coarse_info_path.exists()
     ):
         return None
-    embeddings = np.load(coarse_embeddings_path, mmap_mode="r")
-    ids = np.load(coarse_ids_path, mmap_mode="r")
-    projection = np.load(coarse_projection_path, mmap_mode="r")
+    embeddings = _load_npy_array(coarse_embeddings_path)
+    ids = _load_npy_array(coarse_ids_path)
+    projection = _load_npy_array(coarse_projection_path)
     info = json.loads(coarse_info_path.read_text(encoding="utf-8"))
     expected_projection_hash = info.get("projection_sha256")
     if expected_projection_hash and expected_projection_hash != _sha256(coarse_projection_path):
@@ -414,6 +417,12 @@ def _load_coarse_index(
         info=info,
         block_rows=coarse_block_rows,
     )
+
+
+def _load_npy_array(path: Path) -> np.ndarray:
+    if path.stat().st_size < NPY_MEMORY_LOAD_THRESHOLD_BYTES:
+        return np.load(path)
+    return np.load(path, mmap_mode="r")
 
 
 def _sha256(path: Path) -> str:

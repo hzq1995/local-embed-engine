@@ -13,8 +13,8 @@ export LOCAL_AEF_SERVICE_NAME="Ningbo Local Embed Engine"
 export LOCAL_AEF_HOST="${LOCAL_AEF_HOST:-0.0.0.0}"
 export LOCAL_AEF_PORT="${LOCAL_AEF_PORT:-8010}"
 export LOCAL_AEF_YEAR="${LOCAL_AEF_YEAR:-2024}"
-export LOCAL_AEF_DATA_DIR="${LOCAL_AEF_DATA_DIR:-/mnt_llm_A100_V1/aef-zhejiang/2024/51N}"
-export LOCAL_AEF_BOUNDARY_KML="${LOCAL_AEF_BOUNDARY_KML:-$PROJECT_ROOT/data/ningbo.kml}"
+export LOCAL_AEF_DATA_DIR="${LOCAL_AEF_DATA_DIR:-/mnt_llm_A100_V1/aef-zhejiang/2024/51Nxxxxxx}"
+export LOCAL_AEF_BOUNDARY_KML="${LOCAL_AEF_BOUNDARY_KML:-$PROJECT_ROOT/data/beilunqu.kml}"
 export LOCAL_AEF_DERIVED_DIR="${LOCAL_AEF_DERIVED_DIR:-$PROJECT_ROOT/data/derived}"
 export LOCAL_AEF_BASEMAP_DIR="${LOCAL_AEF_BASEMAP_DIR:-/mnt_llm_A100_V1/googlemap_dataset/shuijingweitu_c40/Ningbo/ningbo-wholeimage/L17}"
 export LOCAL_AEF_BASEMAP_CACHE_DIR="${LOCAL_AEF_BASEMAP_CACHE_DIR:-$PROJECT_ROOT/data/derived/offline_basemap_cache}"
@@ -40,4 +40,3 @@ echo "http://127.0.0.1:8010/offline/point-query"
 uvicorn app.main:app \
   --host "$LOCAL_AEF_HOST" \
   --port "$LOCAL_AEF_PORT" \
-  --reload

@@ -54,9 +54,9 @@ class PointEmbeddingResponse(BaseModel):
 
 class EmbeddingSearchRequest(BaseModel):
     embedding: List[float]
-    search_mode: Literal["fine", "coarse"] = "coarse"
+    search_mode: Literal["fine", "coarse"] = "fine"
     top_k: int = Field(default=10, ge=1, le=1000)
-    min_distance_m: float = Field(default=0, ge=0)
+    min_distance_m: float = Field(default=100, ge=0)
     min_score: float = Field(default=0.0, ge=0, le=1)
     bbox: Optional[List[float]] = None
 

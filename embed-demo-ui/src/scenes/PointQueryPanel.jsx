@@ -278,7 +278,7 @@ export function usePointQueryState(mapInstanceRef) {
   const [errorMessage, setErrorMessage] = useState("无");
   const [isSearching, setIsSearching] = useState(false);
   const [topK, setTopK] = useLocalStorage("pq.topK", 20);
-  const [minDistanceM, setMinDistanceM] = useLocalStorage("pq.minDistanceM", 50);
+  const [minDistanceM, setMinDistanceM] = useLocalStorage("pq.minDistanceM", 100);
   const [minScore, setMinScore] = useLocalStorage("pq.minScore", 0.9);
   const [searchRadiusKm, setSearchRadiusKm] = useLocalStorage("pq.searchRadiusKm", 5);
   const [useCoarseSearch, setUseCoarseSearch] = useLocalStorage("pq.useCoarseSearch", false);

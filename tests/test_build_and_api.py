@@ -148,6 +148,10 @@ class BuildAndApiTests(unittest.TestCase):
             embeddings_path=self.derived_dir / "embeddings.npy",
             index_path=self.derived_dir / "faiss.index",
             build_info_path=self.derived_dir / "build_info.json",
+            coarse_embeddings_path=self.derived_dir / "coarse_embeddings_i8.npy",
+            coarse_ids_path=self.derived_dir / "coarse_ids.npy",
+            coarse_projection_path=self.derived_dir / "coarse_projection.npy",
+            coarse_info_path=self.derived_dir / "coarse_info.json",
         )
 
     def test_build_outputs_expected_artifacts(self) -> None:
@@ -165,6 +169,7 @@ class BuildAndApiTests(unittest.TestCase):
             health = client.get("/health")
             self.assertEqual(health.status_code, 200)
             self.assertTrue(health.json()["index_loaded"])
+            self.assertNotIsInstance(client.app.state.query_service.index_bundle.embeddings, np.memmap)
 
             offline_page = client.get("/offline/point-query")
             self.assertEqual(offline_page.status_code, 200)
@@ -249,6 +254,11 @@ class BuildAndApiTests(unittest.TestCase):
             self.assertEqual(health.status_code, 200)
             self.assertTrue(health.json()["coarse_index_loaded"])
             self.assertEqual(health.json()["coarse_embedding_dim"], 8)
+            loaded_coarse = client.app.state.query_service.index_bundle.coarse_index
+            self.assertIsNotNone(loaded_coarse)
+            self.assertNotIsInstance(loaded_coarse.embeddings, np.memmap)
+            self.assertNotIsInstance(loaded_coarse.ids, np.memmap)
+            self.assertNotIsInstance(loaded_coarse.projection, np.memmap)
 
             point_response = client.post("/embedding/by-point", json={"lon": 121.546, "lat": 29.868})
             self.assertEqual(point_response.status_code, 200)
@@ -299,6 +309,20 @@ class BuildAndApiTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 422)
             self.assertIn("Coarse index is not available", response.json()["detail"])
+
+    def test_coarse_index_writes_identity_projection_without_dim_reduction(self) -> None:
+        info = build_coarse_index(
+            self.derived_dir,
+            stride=2,
+            reduced_dim=64,
+            block_rows=4,
+            projection_seed=123,
+        )
+        self.assertEqual(info["reduced_dim"], 64)
+        projection_path = self.derived_dir / "coarse_projection.npy"
+        self.assertTrue(projection_path.exists())
+        projection = np.load(projection_path)
+        np.testing.assert_array_equal(projection, np.eye(64, dtype=np.float32))
 
     def test_build_fails_fast_on_zero_vector_and_reports_location(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
